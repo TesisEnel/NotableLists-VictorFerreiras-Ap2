@@ -14,12 +14,15 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import ucne.edu.notablelists.data.db.NotableListDB
 import ucne.edu.notablelists.data.local.Notes.NoteDao
 import ucne.edu.notablelists.data.local.Users.UserDao
+import ucne.edu.notablelists.data.remote.AuthApiService
 import ucne.edu.notablelists.data.remote.DataSource.NoteRemoteDataSource
 import ucne.edu.notablelists.data.remote.DataSource.UserRemoteDataSource
 import ucne.edu.notablelists.data.remote.NoteApiService
 import ucne.edu.notablelists.data.remote.UserApiService
+import ucne.edu.notablelists.data.repository.AuthRepositoryImpl
 import ucne.edu.notablelists.data.repository.NoteRepositoryImpl
 import ucne.edu.notablelists.data.repository.UserRepositoryImpl
+import ucne.edu.notablelists.domain.auth.AuthRepository
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.users.repository.UserRepository
 import javax.inject.Singleton
@@ -84,6 +87,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideAuthApiService(moshi: Moshi): AuthApiService {
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(AuthApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
     fun provideUserRepository(userDao: UserDao, remoteDataSource: UserRemoteDataSource): UserRepository {
         return UserRepositoryImpl(userDao, remoteDataSource)
     }
@@ -92,5 +105,11 @@ object AppModule {
     @Singleton
     fun provideNoteRepository(noteDao: NoteDao, remoteDataSource: NoteRemoteDataSource): NoteRepository {
         return NoteRepositoryImpl(noteDao, remoteDataSource)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuthRepository(authApiService: AuthApiService): AuthRepository {
+        return AuthRepositoryImpl(authApiService)
     }
 }
