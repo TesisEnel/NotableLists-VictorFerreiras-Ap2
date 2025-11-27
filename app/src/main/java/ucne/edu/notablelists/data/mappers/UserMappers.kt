@@ -5,6 +5,12 @@ import ucne.edu.notablelists.data.remote.dto.UserRequestDto
 import ucne.edu.notablelists.data.remote.dto.UserResponseDto
 import ucne.edu.notablelists.domain.users.model.User
 import java.util.UUID
+fun UserResponseDto.toDomain(): User = User(
+    id = userId.toString(),
+    remoteId = userId,
+    username = username,
+    password = password
+)
 
 fun UserEntity.toDomain(): User = User(
     id = id,
@@ -30,10 +36,5 @@ fun UserResponseDto.toEntity(): UserEntity = UserEntity(
 
 fun UserEntity.toRequest(): UserRequestDto = UserRequestDto(
     username = userName,
-    password = password
-)
-
-fun User.toRequest(): UserRequestDto = UserRequestDto(
-    username = username,
     password = password
 )
