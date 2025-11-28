@@ -16,6 +16,8 @@ import ucne.edu.notablelists.domain.TriggerSyncUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.usecase.DeleteNoteUseCase
 import ucne.edu.notablelists.domain.notes.usecase.GetNoteUseCase
+import ucne.edu.notablelists.domain.notes.usecase.PostNoteUseCase
+import ucne.edu.notablelists.domain.notes.usecase.PutNoteUseCase
 import ucne.edu.notablelists.domain.notes.usecase.UpsertNoteUseCase
 import ucne.edu.notablelists.presentation.add_edit_note.NoteEditState
 import java.util.UUID
@@ -26,6 +28,8 @@ class NoteEditViewModel @Inject constructor(
     private val upsertNoteUseCase: UpsertNoteUseCase,
     private val getNoteUseCase: GetNoteUseCase,
     private val deleteNoteUseCase: DeleteNoteUseCase,
+    private val postNoteUseCase: PostNoteUseCase,
+    private val putNoteUseCase: PutNoteUseCase,
     private val triggerSyncUseCase: TriggerSyncUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -116,6 +120,8 @@ class NoteEditViewModel @Inject constructor(
                 return@launch
             }
 
+            _state.update { it.copy(isLoading = true) }
+
             val note = Note(
                 id = currentState.id ?: UUID.randomUUID().toString(),
                 remoteId = currentState.remoteId,
@@ -132,6 +138,16 @@ class NoteEditViewModel @Inject constructor(
 
             when (val result = upsertNoteUseCase(note)) {
                 is Resource.Success -> {
+                    try {
+                        if (note.remoteId == null) {
+                            postNoteUseCase(note)
+                        } else {
+                            putNoteUseCase(note)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
                     triggerSyncUseCase()
                     _state.update { it.copy(isLoading = false) }
                     sendUiEvent(NoteEditUiEvent.NavigateBack)
