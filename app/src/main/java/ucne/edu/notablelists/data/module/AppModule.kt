@@ -20,9 +20,11 @@ import ucne.edu.notablelists.data.remote.DataSource.UserRemoteDataSource
 import ucne.edu.notablelists.data.remote.NoteApiService
 import ucne.edu.notablelists.data.remote.UserApiService
 import ucne.edu.notablelists.data.repository.AuthRepositoryImpl
+import ucne.edu.notablelists.data.repository.FriendsRepositoryImpl
 import ucne.edu.notablelists.data.repository.NoteRepositoryImpl
 import ucne.edu.notablelists.data.repository.UserRepositoryImpl
 import ucne.edu.notablelists.domain.auth.AuthRepository
+import ucne.edu.notablelists.domain.friends.FriendsRepository
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.users.repository.UserRepository
 import javax.inject.Singleton
@@ -111,5 +113,11 @@ object AppModule {
     @Singleton
     fun provideAuthRepository(authApiService: AuthApiService): AuthRepository {
         return AuthRepositoryImpl(authApiService)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFriendsRepository(remoteDataSource: UserRemoteDataSource): FriendsRepository {
+        return FriendsRepositoryImpl(remoteDataSource)
     }
 }
