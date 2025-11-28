@@ -34,65 +34,84 @@ class NoteRepositoryImpl @Inject constructor(
     }
 
     override suspend fun upsert(note: Note): Resource<Unit> {
-        val remoteId = note.remoteId ?: return Resource.Error("No remoteId")
-        val request = NoteRequestDto(
-            title = note.title,
-            description = note.description,
-            tag = note.tag,
-            isFinished = note.isFinished,
-            reminder = note.reminder,
-            checklist = note.checklist,
-            priority = note.priority,
-            deleteAt = note.deleteAt,
-            autoDelete = note.autoDelete
-        )
-        return when (val result = remoteDataSource.updateNote(remoteId, request)) {
-            is Resource.Success -> {
-                localDataSource.upsert(note.toEntity())
-                Resource.Success(Unit)
+        return try {
+            val isNew = note.remoteId == null
+            val entity = note.toEntity().copy(isPendingCreate = isNew)
+            localDataSource.upsert(entity)
+
+            if (!isNew) {
+                try {
+                    val request = NoteRequestDto(
+                        title = note.title,
+                        description = note.description,
+                        tag = note.tag,
+                        isFinished = note.isFinished,
+                        reminder = note.reminder,
+                        checklist = note.checklist,
+                        priority = note.priority,
+                        deleteAt = note.deleteAt,
+                        autoDelete = note.autoDelete
+                    )
+                    remoteDataSource.updateNote(note.remoteId!!, request)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-            is Resource.Error -> result
-            else -> Resource.Loading()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Resource.Error(e.message ?: "Error desconocido al guardar localmente")
         }
     }
 
     override suspend fun delete(id: String): Resource<Unit> {
-        val note = localDataSource.getNote(id) ?: return Resource.Error("No encontrada")
-        val remoteId = note.remoteId ?: return Resource.Error("No remoteId")
-        return when (val result = remoteDataSource.deleteNote(remoteId)) {
-            is Resource.Success -> {
-                localDataSource.delete(id)
-                Resource.Success(Unit)
+        return try {
+            val noteEntity = localDataSource.getNote(id) ?: return Resource.Error("Nota no encontrada")
+
+            localDataSource.delete(id)
+
+            if (noteEntity.remoteId != null) {
+                try {
+                    remoteDataSource.deleteNote(noteEntity.remoteId)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-            is Resource.Error -> result
-            else -> Resource.Loading()
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Resource.Error(e.message ?: "Error al eliminar")
         }
     }
 
     override suspend fun postPendingNotes(): Resource<Unit> {
-        val pending = localDataSource.getPendingCreateNotes()
-        for (note in pending) {
-            val request = NoteRequestDto(
-                title = note.title,
-                description = note.description,
-                tag = note.tag,
-                isFinished = note.isFinished,
-                reminder = note.reminder,
-                checklist = note.checklist,
-                priority = note.priority,
-                deleteAt = note.deleteAt,
-                autoDelete = note.autoDelete
-            )
-            when (val result = remoteDataSource.createNote(request)) {
-                is Resource.Success -> {
-                    val synced = note.copy(remoteId = result.data?.noteId, isPendingCreate = false)
-                    localDataSource.upsert(synced)
+        return try {
+            val pending = localDataSource.getPendingCreateNotes()
+
+            for (note in pending) {
+                val request = NoteRequestDto(
+                    title = note.title,
+                    description = note.description,
+                    tag = note.tag,
+                    isFinished = note.isFinished,
+                    reminder = note.reminder,
+                    checklist = note.checklist,
+                    priority = note.priority,
+                    deleteAt = note.deleteAt,
+                    autoDelete = note.autoDelete
+                )
+
+                val result = remoteDataSource.createNote(request)
+                if (result is Resource.Success && result.data != null) {
+                    val syncedEntity = note.copy(
+                        remoteId = result.data.noteId,
+                        isPendingCreate = false
+                    )
+                    localDataSource.upsert(syncedEntity)
                 }
-                is Resource.Error -> return Resource.Error("Falló sincronización")
-                else -> {}
             }
+            Resource.Success(Unit)
+        } catch (e: Exception) {
+            Resource.Error("Error en sincronización: ${e.message}")
         }
-        return Resource.Success(Unit)
     }
 
     override suspend fun postNote(note: Note): Note {
@@ -133,7 +152,7 @@ class NoteRepositoryImpl @Inject constructor(
         val result = remoteDataSource.updateNote(remoteId, request)
 
         return if (result is Resource.Success) {
-            note.copy()
+            note
         } else {
             throw Exception("Failed to update note on server")
         }
