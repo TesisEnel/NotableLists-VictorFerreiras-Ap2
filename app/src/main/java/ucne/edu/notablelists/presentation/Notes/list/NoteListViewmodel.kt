@@ -46,7 +46,7 @@ class NotesListViewModel @Inject constructor(
         val uiNotes = if (isLoading && notes.isEmpty()) {
             emptyList()
         } else {
-            filteredNotes.mapIndexed { index, note -> mapToUiItem(note, index) }
+            filteredNotes.map { note -> mapToUiItem(note) }
         }
 
         val uiFilters = NoteFilter.entries.map { filter ->
@@ -87,11 +87,11 @@ class NotesListViewModel @Inject constructor(
         }
     }
 
-    private fun mapToUiItem(note: Note, index: Int): NoteUiItem {
-        val style = when (index % 3) {
-            0 -> NoteStyle.Secondary
+    private fun mapToUiItem(note: Note): NoteUiItem {
+        val style = when (note.priority) {
+            2 -> NoteStyle.Error
             1 -> NoteStyle.Primary
-            else -> NoteStyle.Error
+            else -> NoteStyle.Secondary
         }
 
         val priorityList = if (note.priority > 0) {
