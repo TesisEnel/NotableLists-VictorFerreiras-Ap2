@@ -46,10 +46,10 @@ class NoteRepositoryImpl @Inject constructor(
                         description = note.description,
                         tag = note.tag,
                         isFinished = note.isFinished,
-                        reminder = note.reminder,
-                        checklist = note.checklist,
+                        reminder = note.reminder?: "",
+                        checklist = note.checklist?: "",
                         priority = note.priority,
-                        deleteAt = note.deleteAt,
+                        deleteAt = note.deleteAt?: "",
                         autoDelete = note.autoDelete
                     )
                     remoteDataSource.updateNote(note.remoteId!!, request)
@@ -92,10 +92,10 @@ class NoteRepositoryImpl @Inject constructor(
                     description = note.description,
                     tag = note.tag,
                     isFinished = note.isFinished,
-                    reminder = note.reminder,
-                    checklist = note.checklist,
+                    reminder = note.reminder?: "",
+                    checklist = note.checklist?: "",
                     priority = note.priority,
-                    deleteAt = note.deleteAt,
+                    deleteAt = note.deleteAt?: "",
                     autoDelete = note.autoDelete
                 )
 
@@ -114,47 +114,64 @@ class NoteRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun postNote(note: Note): Note {
-        val request = NoteRequestDto(
-            title = note.title,
-            description = note.description,
-            tag = note.tag,
-            isFinished = note.isFinished,
-            reminder = note.reminder,
-            checklist = note.checklist,
-            priority = note.priority,
-            deleteAt = note.deleteAt,
-            autoDelete = note.autoDelete
-        )
-        val result = remoteDataSource.createNote(request)
+    override suspend fun postNote(note: Note): Resource<Note> {
+        return try {
+            val request = NoteRequestDto(
+                title = note.title,
+                description = note.description,
+                tag = note.tag,
+                isFinished = note.isFinished,
+                reminder = note.reminder?: "",
+                checklist = note.checklist?: "",
+                priority = note.priority,
+                deleteAt = note.deleteAt?: "",
+                autoDelete = note.autoDelete
+            )
+            val result = remoteDataSource.createNote(request)
 
-        return if (result is Resource.Success) {
-            val remoteNote = result.data!!
-            note.copy(remoteId = remoteNote.noteId)
-        } else {
-            throw Exception("Failed to create note on server")
+            when (result) {
+                is Resource.Success -> {
+                    if (result.data != null) {
+                        val remoteNote = result.data
+                        val updatedNote = note.copy(remoteId = remoteNote.noteId)
+                        Resource.Success(updatedNote)
+                    } else {
+                        Resource.Error("Empty response from server")
+                    }
+                }
+                is Resource.Error -> {
+                    Resource.Error(result.message ?: "Unknown API error")
+                }
+                else -> Resource.Error("Unexpected result")
+            }
+        } catch (e: Exception) {
+            Resource.Error("Network error: ${e.message}")
         }
     }
 
-    override suspend fun putNote(note: Note): Note {
-        val remoteId = note.remoteId ?: throw Exception("No remoteId")
-        val request = NoteRequestDto(
-            title = note.title,
-            description = note.description,
-            tag = note.tag,
-            isFinished = note.isFinished,
-            reminder = note.reminder,
-            checklist = note.checklist,
-            priority = note.priority,
-            deleteAt = note.deleteAt,
-            autoDelete = note.autoDelete
-        )
-        val result = remoteDataSource.updateNote(remoteId, request)
+    override suspend fun putNote(note: Note): Resource<Note> {
+        return try {
+            val remoteId = note.remoteId ?: return Resource.Error("No remoteId")
+            val request = NoteRequestDto(
+                title = note.title,
+                description = note.description,
+                tag = note.tag,
+                isFinished = note.isFinished,
+                reminder = note.reminder?: "",
+                checklist = note.checklist?: "",
+                priority = note.priority,
+                deleteAt = note.deleteAt?: "",
+                autoDelete = note.autoDelete
+            )
+            val result = remoteDataSource.updateNote(remoteId, request)
 
-        return if (result is Resource.Success) {
-            note
-        } else {
-            throw Exception("Failed to update note on server")
+            if (result is Resource.Success) {
+                Resource.Success(note)
+            } else {
+                Resource.Error("Failed to update note on server")
+            }
+        } catch (e: Exception) {
+            Resource.Error("Failed to update note: ${e.message}")
         }
     }
 }
