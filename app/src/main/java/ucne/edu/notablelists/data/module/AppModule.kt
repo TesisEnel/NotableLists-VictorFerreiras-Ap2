@@ -13,6 +13,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import ucne.edu.notablelists.data.db.NotableListDB
 import ucne.edu.notablelists.data.local.Notes.NoteDao
+import ucne.edu.notablelists.data.local.SessionManager
 import ucne.edu.notablelists.data.local.Users.UserDao
 import ucne.edu.notablelists.data.remote.AuthApiService
 import ucne.edu.notablelists.data.remote.DataSource.NoteRemoteDataSource
@@ -22,10 +23,12 @@ import ucne.edu.notablelists.data.remote.UserApiService
 import ucne.edu.notablelists.data.repository.AuthRepositoryImpl
 import ucne.edu.notablelists.data.repository.FriendsRepositoryImpl
 import ucne.edu.notablelists.data.repository.NoteRepositoryImpl
+import ucne.edu.notablelists.data.repository.SessionRepositoryImpl
 import ucne.edu.notablelists.data.repository.UserRepositoryImpl
 import ucne.edu.notablelists.domain.auth.AuthRepository
 import ucne.edu.notablelists.domain.friends.FriendsRepository
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
+import ucne.edu.notablelists.domain.session.SessionRepository
 import ucne.edu.notablelists.domain.users.repository.UserRepository
 import javax.inject.Singleton
 
@@ -119,5 +122,11 @@ object AppModule {
     @Singleton
     fun provideFriendsRepository(remoteDataSource: UserRemoteDataSource): FriendsRepository {
         return FriendsRepositoryImpl(remoteDataSource)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSessionRepository(sessionManager: SessionManager): SessionRepository {
+        return SessionRepositoryImpl(sessionManager)
     }
 }
