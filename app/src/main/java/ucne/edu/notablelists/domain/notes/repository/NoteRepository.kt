@@ -11,6 +11,6 @@ interface NoteRepository {
     suspend fun upsert(note: Note): Resource<Unit>
     suspend fun delete(id: String): Resource<Unit>
     suspend fun postPendingNotes(): Resource<Unit>
-    suspend fun postNote(note: Note): Note
-    suspend fun putNote(note: Note): Note
+    suspend fun postNote(note: Note): Resource<Note>
+    suspend fun putNote(note: Note): Resource<Note>
 }
