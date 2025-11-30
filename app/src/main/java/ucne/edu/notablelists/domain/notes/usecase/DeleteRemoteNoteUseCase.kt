@@ -7,7 +7,7 @@ import javax.inject.Inject
 class DeleteRemoteNoteUseCase @Inject constructor(
     private val repository: NoteRepository
 ) {
-    suspend operator fun invoke(id: Int): Resource<Unit> {
-        return repository.deleteRemote(id)
+    suspend operator fun invoke(id: Int,userId: Int? = null): Resource<Unit> {
+        return repository.deleteRemote(id,userId)
     }
 }
