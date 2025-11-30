@@ -7,5 +7,7 @@ import javax.inject.Inject
 class PostPendingNotesUseCase @Inject constructor(
     private val repository: NoteRepository
 ) {
-    suspend operator fun invoke(): Resource<Unit> = repository.postPendingNotes()
+    suspend operator fun invoke(userId: Int): Resource<Unit> {
+        return repository.postPendingNotes(userId)
+    }
 }
