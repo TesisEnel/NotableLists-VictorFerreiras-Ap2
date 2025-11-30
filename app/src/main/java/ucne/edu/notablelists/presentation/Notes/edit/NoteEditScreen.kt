@@ -1,61 +1,44 @@
 package ucne.edu.notablelists.presentation.Notes.edit
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Label
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.collectLatest
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +50,28 @@ fun NoteEditScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var isMenuExpanded by remember { mutableStateOf(false) }
 
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var pickerContext by remember { mutableStateOf(PickerContext.REMINDER) }
+
+    val datePickerState = rememberDatePickerState()
+    val timePickerState = rememberTimePickerState()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = {}
+    )
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    BackHandler {
+        viewModel.onEvent(NoteEditEvent.OnBackClick)
+    }
+
     LaunchedEffect(key1 = true) {
         viewModel.uiEvent.collectLatest { event ->
             when (event) {
@@ -75,10 +80,62 @@ fun NoteEditScreen(
         }
     }
 
-    LaunchedEffect(key1 = state.errorMessage) {
-        state.errorMessage?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            viewModel.errorMessageShown()
+    if (state.showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissDeleteDialog) },
+            title = { Text("¿Estás seguro?") },
+            text = { Text("Eliminar una nota es permanente y no se puede deshacer") },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(NoteEditEvent.DeleteNote) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissDeleteDialog) }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDatePicker = false
+                    showTimePicker = true
+                }) { Text("Siguiente") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        DateTimePickerDialog(
+            onDismissRequest = { showTimePicker = false },
+            onConfirm = {
+                val date = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+                val hour = timePickerState.hour
+                val minute = timePickerState.minute
+
+                if (pickerContext == PickerContext.REMINDER) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    viewModel.onEvent(NoteEditEvent.SetReminder(date, hour, minute))
+                } else {
+                    viewModel.onEvent(NoteEditEvent.SetAutoDelete(date, hour, minute))
+                }
+                showTimePicker = false
+            }
+        ) {
+            TimePicker(state = timePickerState)
         }
     }
 
@@ -92,22 +149,6 @@ fun NoteEditScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.onEvent(NoteEditEvent.DeleteNote) }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete Note",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                    IconButton(onClick = { viewModel.onEvent(NoteEditEvent.SaveNote) }) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Save Note",
-                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 },
@@ -126,11 +167,21 @@ fun NoteEditScreen(
                     isMenuExpanded = false
                 },
                 onReminderClick = {
-                    viewModel.onEvent(NoteEditEvent.ChangeReminder("Mañana 9:00 AM"))
+                    pickerContext = PickerContext.REMINDER
+                    showDatePicker = true
                     isMenuExpanded = false
                 },
-                onTagClick = {
-                    viewModel.onEvent(NoteEditEvent.EnteredTag("Personal"))
+                onAutoDeleteClick = {
+                    pickerContext = PickerContext.AUTO_DELETE
+                    showDatePicker = true
+                    isMenuExpanded = false
+                },
+                onChecklistClick = {
+                    viewModel.onEvent(NoteEditEvent.AddChecklistItem)
+                    isMenuExpanded = false
+                },
+                onDeleteClick = {
+                    viewModel.onEvent(NoteEditEvent.ShowDeleteDialog)
                     isMenuExpanded = false
                 }
             )
@@ -141,6 +192,7 @@ fun NoteEditScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             TransparentHintTextField(
                 text = state.title,
@@ -155,19 +207,26 @@ fun NoteEditScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (state.priority > 0 || state.tag.isNotBlank() || state.reminder != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (state.priority > 0) {
-                        ChipInfo(text = "Prioridad: ${state.priority}", icon = Icons.Default.Flag)
+            FlowRowChips(
+                state = state,
+                onRemoveReminder = { viewModel.onEvent(NoteEditEvent.ClearReminder) },
+                onRemoveAutoDelete = { viewModel.onEvent(NoteEditEvent.ClearAutoDelete) }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (state.checklist.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.checklist.forEachIndexed { index, item ->
+                        ChecklistItemRow(
+                            item = item,
+                            onTextChange = { viewModel.onEvent(NoteEditEvent.UpdateChecklistItem(index, it)) },
+                            onToggle = { viewModel.onEvent(NoteEditEvent.ToggleChecklistItem(index)) },
+                            onRemove = { viewModel.onEvent(NoteEditEvent.RemoveChecklistItem(index)) }
+                        )
                     }
-                    if (state.tag.isNotBlank()) {
-                        ChipInfo(text = state.tag, icon = Icons.Default.Label)
-                    }
-                    state.reminder?.let {
-                        ChipInfo(text = it, icon = Icons.Default.Alarm)
+                    TextButton(onClick = { viewModel.onEvent(NoteEditEvent.AddChecklistItem) }) {
+                        Text("+ Añadir")
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -184,6 +243,117 @@ fun NoteEditScreen(
                 singleLine = false,
                 modifier = Modifier.fillMaxSize()
             )
+
+            Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+}
+
+enum class PickerContext { REMINDER, AUTO_DELETE }
+
+@Composable
+fun DateTimePickerDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) { Text("Cancelar") }
+        },
+        text = { content() }
+    )
+}
+
+@Composable
+fun FlowRowChips(
+    state: NoteEditState,
+    onRemoveReminder: () -> Unit,
+    onRemoveAutoDelete: () -> Unit
+) {
+    if (state.priority > 0 || state.tag.isNotBlank() || state.reminder != null || state.autoDelete) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (state.priority > 0) {
+                ChipInfo(text = "P: ${state.priority}", icon = Icons.Default.Flag)
+            }
+            if (state.tag.isNotBlank()) {
+                ChipInfo(text = state.tag, icon = Icons.Default.Label)
+            }
+            state.reminder?.let {
+                ChipInfo(text = it, icon = Icons.Default.Alarm, onDelete = onRemoveReminder)
+            }
+            if (state.autoDelete && state.deleteAt != null) {
+                ChipInfo(text = "Del: ${state.deleteAt}", icon = Icons.Default.Timer, onDelete = onRemoveAutoDelete)
+            }
+        }
+    }
+}
+
+@Composable
+fun ChecklistItemRow(
+    item: ChecklistItem,
+    onTextChange: (String) -> Unit,
+    onToggle: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        if(item.text.isEmpty()) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Checkbox(
+            checked = item.isDone,
+            onCheckedChange = { onToggle() }
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp)
+        ) {
+            if (item.text.isEmpty()) {
+                Text(
+                    text = "Elemento de lista",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    )
+                )
+            }
+            BasicTextField(
+                value = item.text,
+                onValueChange = onTextChange,
+                textStyle = if (item.isDone)
+                    MaterialTheme.typography.bodyLarge.copy(
+                        textDecoration = TextDecoration.LineThrough,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                else MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                singleLine = false,
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+            )
+        }
+
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Default.Close, contentDescription = "Remove item", modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -194,7 +364,9 @@ fun FabMenu(
     onToggle: () -> Unit,
     onPriorityClick: () -> Unit,
     onReminderClick: () -> Unit,
-    onTagClick: () -> Unit
+    onAutoDeleteClick: () -> Unit,
+    onChecklistClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val rotation by animateFloatAsState(targetValue = if (expanded) 135f else 0f, label = "fab_rotation")
 
@@ -211,21 +383,11 @@ fun FabMenu(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                FabMenuItem(
-                    icon = Icons.Default.Flag,
-                    label = "Prioridad",
-                    onClick = onPriorityClick
-                )
-                FabMenuItem(
-                    icon = Icons.Default.Alarm,
-                    label = "Recordatorio",
-                    onClick = onReminderClick
-                )
-                FabMenuItem(
-                    icon = Icons.Default.Label,
-                    label = "Etiqueta",
-                    onClick = onTagClick
-                )
+                FabMenuItem(Icons.Default.Flag, "Prioridad", onPriorityClick)
+                FabMenuItem(Icons.Default.Alarm, "Recordatorio", onReminderClick)
+                FabMenuItem(Icons.Default.Timer, "Auto-Eliminar", onAutoDeleteClick)
+                FabMenuItem(Icons.Default.Checklist, "Lista", onChecklistClick)
+                FabMenuItem(Icons.Default.Delete, "Eliminar", onDeleteClick, MaterialTheme.colorScheme.errorContainer)
             }
         }
 
@@ -247,7 +409,8 @@ fun FabMenu(
 fun FabMenuItem(
     icon: ImageVector,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -266,7 +429,7 @@ fun FabMenuItem(
         }
         SmallFloatingActionButton(
             onClick = onClick,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            containerColor = containerColor,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
         ) {
             Icon(imageVector = icon, contentDescription = label)
@@ -305,14 +468,15 @@ fun TransparentHintTextField(
 @Composable
 fun ChipInfo(
     text: String,
-    icon: ImageVector
+    icon: ImageVector,
+    onDelete: (() -> Unit)? = null
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         shape = CircleShape
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).clickable { onDelete?.invoke() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -327,6 +491,9 @@ fun ChipInfo(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (onDelete != null) {
+                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(12.dp))
+            }
         }
     }
 }

@@ -11,16 +11,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import ucne.edu.notablelists.data.local.AlarmScheduler
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.TriggerSyncUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
-import ucne.edu.notablelists.domain.notes.usecase.DeleteNoteUseCase
-import ucne.edu.notablelists.domain.notes.usecase.DeleteRemoteNoteUseCase
-import ucne.edu.notablelists.domain.notes.usecase.GetNoteUseCase
-import ucne.edu.notablelists.domain.notes.usecase.PostNoteUseCase
-import ucne.edu.notablelists.domain.notes.usecase.PutNoteUseCase
-import ucne.edu.notablelists.domain.notes.usecase.UpsertNoteUseCase
-import ucne.edu.notablelists.presentation.add_edit_note.NoteEditState
+import ucne.edu.notablelists.domain.notes.usecase.*
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 import javax.inject.Inject
 
@@ -33,6 +32,7 @@ class NoteEditViewModel @Inject constructor(
     private val postNoteUseCase: PostNoteUseCase,
     private val putNoteUseCase: PutNoteUseCase,
     private val triggerSyncUseCase: TriggerSyncUseCase,
+    private val alarmScheduler: AlarmScheduler,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -64,26 +64,66 @@ class NoteEditViewModel @Inject constructor(
             is NoteEditEvent.ChangePriority -> {
                 _state.update { it.copy(priority = event.value) }
             }
-            is NoteEditEvent.ChangeReminder -> {
-                _state.update { it.copy(reminder = event.value) }
+            is NoteEditEvent.SetReminder -> {
+                val localDateTime = getLocalDateTime(event.date, event.timeHour, event.timeMinute)
+                val formattedDate = formatDateTime(localDateTime)
+                val noteId = _state.value.id ?: UUID.randomUUID().toString()
+
+                _state.update { it.copy(id = noteId, reminder = formattedDate) }
+                alarmScheduler.schedule(noteId, _state.value.title.ifBlank { "Sin Título" }, localDateTime)
             }
-            is NoteEditEvent.ChangeChecklist -> {
-                _state.update { it.copy(checklist = event.value) }
+            is NoteEditEvent.SetAutoDelete -> {
+                val localDateTime = getLocalDateTime(event.date, event.timeHour, event.timeMinute)
+                val formattedDate = formatDateTime(localDateTime)
+                _state.update { it.copy(autoDelete = true, deleteAt = formattedDate) }
             }
-            is NoteEditEvent.ToggleAutoDelete -> {
-                _state.update { it.copy(autoDelete = event.isEnabled) }
+            is NoteEditEvent.AddChecklistItem -> {
+                val newItem = ChecklistItem("", false)
+                _state.update { it.copy(checklist = it.checklist + newItem) }
+            }
+            is NoteEditEvent.UpdateChecklistItem -> {
+                _state.update {
+                    val updatedList = it.checklist.mapIndexed { index, item ->
+                        if (index == event.index) item.copy(text = event.text) else item
+                    }
+                    it.copy(checklist = updatedList)
+                }
+            }
+            is NoteEditEvent.ToggleChecklistItem -> {
+                _state.update {
+                    val updatedList = it.checklist.mapIndexed { index, item ->
+                        if (index == event.index) item.copy(isDone = !item.isDone) else item
+                    }
+                    it.copy(checklist = updatedList)
+                }
+            }
+            is NoteEditEvent.RemoveChecklistItem -> {
+                _state.update {
+                    val updatedList = it.checklist.toMutableList().apply { removeAt(event.index) }
+                    it.copy(checklist = updatedList)
+                }
             }
             is NoteEditEvent.ToggleFinished -> {
                 _state.update { it.copy(isFinished = event.isFinished) }
             }
-            is NoteEditEvent.SaveNote -> {
-                saveNote()
+            is NoteEditEvent.ShowDeleteDialog -> {
+                _state.update { it.copy(showDeleteDialog = true) }
+            }
+            is NoteEditEvent.DismissDeleteDialog -> {
+                _state.update { it.copy(showDeleteDialog = false) }
             }
             is NoteEditEvent.DeleteNote -> {
                 deleteNote()
             }
             is NoteEditEvent.OnBackClick -> {
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
+                saveNoteAndExit()
+            }
+            NoteEditEvent.ClearAutoDelete -> {
+                _state.update { it.copy(autoDelete = false, deleteAt = null) }
+            }
+            NoteEditEvent.ClearReminder -> {
+                _state.value.id?.let { alarmScheduler.cancel(it) }
+                _state.update { it.copy(reminder = null) }
             }
         }
     }
@@ -103,7 +143,7 @@ class NoteEditViewModel @Inject constructor(
                         priority = n.priority,
                         isFinished = n.isFinished,
                         reminder = n.reminder,
-                        checklist = n.checklist,
+                        checklist = parseChecklist(n.checklist),
                         autoDelete = n.autoDelete,
                         deleteAt = n.deleteAt,
                         isLoading = false
@@ -113,16 +153,18 @@ class NoteEditViewModel @Inject constructor(
         }
     }
 
-    private fun saveNote() {
+    private fun saveNoteAndExit() {
         viewModelScope.launch {
             val currentState = _state.value
 
-            if (currentState.title.isBlank()) {
-                _state.update { it.copy(errorMessage = "El título no puede estar vacío") }
+            if (currentState.title.isBlank() && currentState.description.isBlank() && currentState.checklist.isEmpty()) {
+                sendUiEvent(NoteEditUiEvent.NavigateBack)
                 return@launch
             }
 
             _state.update { it.copy(isLoading = true) }
+
+            val checklistString = serializeChecklist(currentState.checklist)
 
             val note = Note(
                 id = currentState.id ?: UUID.randomUUID().toString(),
@@ -133,43 +175,28 @@ class NoteEditViewModel @Inject constructor(
                 priority = currentState.priority,
                 isFinished = currentState.isFinished,
                 reminder = currentState.reminder,
-                checklist = currentState.checklist,
+                checklist = checklistString,
                 autoDelete = currentState.autoDelete,
                 deleteAt = currentState.deleteAt
             )
 
-            when (val result = upsertNoteUseCase(note)) {
-                is Resource.Success -> {
-                    val apiResult = if (note.remoteId == null) {
-                        postNoteUseCase(note)
-                    } else {
-                        putNoteUseCase(note)
-                    }
+            upsertNoteUseCase(note)
 
-                    when (apiResult) {
-                        is Resource.Success -> {
-                            apiResult.data?.let { remoteNote ->
-                                upsertNoteUseCase(remoteNote)
-                            }
-                            triggerSyncUseCase()
-                            _state.update { it.copy(isLoading = false) }
-                            sendUiEvent(NoteEditUiEvent.NavigateBack)
-                        }
-                        is Resource.Error -> {
-                            _state.update { it.copy(errorMessage = apiResult.message, isLoading = false) }
-                        }
-                        is Resource.Loading -> {
-                            _state.update { it.copy(isLoading = true) }
-                        }
-                    }
-                }
-                is Resource.Error -> {
-                    _state.update { it.copy(errorMessage = result.message, isLoading = false) }
-                }
-                is Resource.Loading -> {
-                    _state.update { it.copy(isLoading = true) }
-                }
+            val apiResult = if (note.remoteId == null) {
+                postNoteUseCase(note)
+            } else {
+                putNoteUseCase(note)
             }
+
+            if (apiResult is Resource.Success) {
+                apiResult.data?.let { remoteNote ->
+                    upsertNoteUseCase(remoteNote)
+                }
+                triggerSyncUseCase()
+            }
+
+            _state.update { it.copy(isLoading = false) }
+            sendUiEvent(NoteEditUiEvent.NavigateBack)
         }
     }
 
@@ -179,31 +206,43 @@ class NoteEditViewModel @Inject constructor(
             val remoteId = _state.value.remoteId
 
             if (id != null) {
+                alarmScheduler.cancel(id)
                 if (remoteId != null) {
                     deleteRemoteNoteUseCase(remoteId)
                 }
-
-                when (val result = deleteNoteUseCase(id)) {
-                    is Resource.Success -> {
-                        triggerSyncUseCase()
-                        _state.update { it.copy(isLoading = false) }
-                        sendUiEvent(NoteEditUiEvent.NavigateBack)
-                    }
-                    is Resource.Error -> {
-                        _state.update { it.copy(errorMessage = result.message, isLoading = false) }
-                    }
-                    is Resource.Loading -> {
-                        _state.update { it.copy(isLoading = true) }
-                    }
-                }
-            } else {
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
+                deleteNoteUseCase(id)
+                triggerSyncUseCase()
             }
+            _state.update { it.copy(showDeleteDialog = false) }
+            sendUiEvent(NoteEditUiEvent.NavigateBack)
         }
     }
 
-    fun errorMessageShown() {
-        _state.update { it.copy(errorMessage = null) }
+    private fun getLocalDateTime(date: Long, hour: Int, minute: Int): LocalDateTime {
+        val localDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate()
+        return LocalDateTime.of(localDate, java.time.LocalTime.of(hour, minute))
+    }
+
+    private fun formatDateTime(localDateTime: LocalDateTime): String {
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+        return localDateTime.format(formatter)
+    }
+
+    private fun parseChecklist(checklistString: String?): List<ChecklistItem> {
+        if (checklistString.isNullOrBlank()) return emptyList()
+        return checklistString.split("\n").mapNotNull {
+            val parts = it.split("|", limit = 2)
+            if (parts.size == 2) {
+                ChecklistItem(parts[1], parts[0] == "1")
+            } else null
+        }
+    }
+
+    private fun serializeChecklist(items: List<ChecklistItem>): String? {
+        if (items.isEmpty()) return null
+        return items.joinToString("\n") {
+            "${if (it.isDone) "1" else "0"}|${it.text}"
+        }
     }
 
     private fun sendUiEvent(event: NoteEditUiEvent) {

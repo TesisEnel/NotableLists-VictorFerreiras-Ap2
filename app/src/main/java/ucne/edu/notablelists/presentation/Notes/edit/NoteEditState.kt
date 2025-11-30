@@ -1,4 +1,4 @@
-package ucne.edu.notablelists.presentation.add_edit_note
+package ucne.edu.notablelists.presentation.Notes.edit
 
 data class NoteEditState(
     val id: String? = null,
@@ -9,10 +9,16 @@ data class NoteEditState(
     val priority: Int = 0,
     val isFinished: Boolean = false,
     val reminder: String? = null,
-    val checklist: String? = null,
+    val checklist: List<ChecklistItem> = emptyList(),
     val autoDelete: Boolean = false,
     val deleteAt: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
-    val isNoteSaved: Boolean = false
+    val isNoteSaved: Boolean = false,
+    val showDeleteDialog: Boolean = false
+)
+
+data class ChecklistItem(
+    val text: String,
+    val isDone: Boolean
 )
