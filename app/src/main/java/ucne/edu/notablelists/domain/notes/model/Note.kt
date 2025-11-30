@@ -5,6 +5,7 @@ import java.util.UUID
 data class Note(
     val id: String = UUID.randomUUID().toString(),
     val remoteId: Int? = null,
+    val userId: Int? = null,
     val title: String,
     val description: String,
     val tag: String,
