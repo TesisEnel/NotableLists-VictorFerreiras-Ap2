@@ -76,4 +76,57 @@ class NoteRemoteDataSource @Inject constructor(
             Resource.Error(e.localizedMessage ?: "Error de red")
         }
     }
+    suspend fun getUserNotes(userId: Int): Resource<List<NoteResponseDto>> {
+        return try {
+            val response = api.getUserNotes(userId)
+            if (response.isSuccessful) {
+                response.body()?.let { Resource.Success(it) }
+                    ?: Resource.Error("Empty response")
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Network error")
+        }
+    }
+
+    suspend fun createUserNote(userId: Int, request: NoteRequestDto): Resource<NoteResponseDto> {
+        return try {
+            val response = api.createUserNote(userId, request)
+            if (response.isSuccessful) {
+                response.body()?.let { Resource.Success(it) }
+                    ?: Resource.Error("Empty response")
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Network error")
+        }
+    }
+
+    suspend fun updateUserNote(userId: Int, id: Int, request: NoteRequestDto): Resource<Unit> {
+        return try {
+            val response = api.updateUserNote(userId, id, request)
+            if (response.isSuccessful) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Network error")
+        }
+    }
+
+    suspend fun deleteUserNote(userId: Int, id: Int): Resource<Unit> {
+        return try {
+            val response = api.deleteUserNote(userId, id)
+            if (response.isSuccessful) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Network error")
+        }
+    }
 }
