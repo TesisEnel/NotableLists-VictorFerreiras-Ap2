@@ -1,5 +1,6 @@
 package ucne.edu.notablelists.presentation.Notes.list
 
+import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,6 +16,7 @@ class NotesListViewModel @Inject constructor(
     private val getNotesUseCase: GetNotesUseCase,
     private val deleteNoteUseCase: DeleteNoteUseCase,
     private val upsertNoteUseCase: UpsertNoteUseCase,
+    private val getUserIdUseCase: GetUserIdUseCase,
     private val postPendingNotesUseCase: PostPendingNotesUseCase
 ) : ViewModel() {
 
@@ -173,16 +175,20 @@ class NotesListViewModel @Inject constructor(
 
     private fun toggleNoteFinished(note: Note) {
         viewModelScope.launch {
-            upsertNoteUseCase(note.copy(isFinished = !note.isFinished))
+            val userId = getUserIdUseCase().first()
+            upsertNoteUseCase(note.copy(isFinished = !note.isFinished), userId) // ← Pass userId
         }
     }
 
     private fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            val result = postPendingNotesUseCase()
-            if (result is Resource.Error) {
-                _errorMessage.value = result.message
+            val userId = getUserIdUseCase().first()
+            if (userId != null) {
+                val result = postPendingNotesUseCase(userId)
+                if (result is Resource.Error) {
+                    _errorMessage.value = result.message
+                }
             }
             _isRefreshing.value = false
         }
