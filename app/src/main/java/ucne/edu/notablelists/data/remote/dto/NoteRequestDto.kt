@@ -9,5 +9,6 @@ data class NoteRequestDto(
     val checklist: String = "",
     val priority: Int,
     val deleteAt: String = "",
-    val autoDelete: Boolean = false
+    val autoDelete: Boolean = false,
+    val userId: Int? = null
 )
