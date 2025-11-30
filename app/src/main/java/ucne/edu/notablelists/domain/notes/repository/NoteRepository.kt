@@ -7,11 +7,16 @@ import ucne.edu.notablelists.domain.notes.model.Note
 interface NoteRepository {
     fun observeNotes(): Flow<List<Note>>
     suspend fun getNote(id: String): Note?
-    suspend fun createNoteLocal(note: Note): Resource<Note>
-    suspend fun upsert(note: Note): Resource<Unit>
+    suspend fun createNoteLocal(note: Note, userId: Int? = null): Resource<Note>
+    suspend fun upsert(note: Note, userId: Int? = null): Resource<Unit>
     suspend fun delete(id: String): Resource<Unit>
-    suspend fun deleteRemote(id: Int): Resource<Unit>
-    suspend fun postPendingNotes(): Resource<Unit>
-    suspend fun postNote(note: Note): Resource<Note>
-    suspend fun putNote(note: Note): Resource<Note>
+    suspend fun deleteRemote(id: Int, userId: Int? = null): Resource<Unit>
+    suspend fun postPendingNotes(userId: Int): Resource<Unit>
+    suspend fun postNote(note: Note, userId: Int? = null): Resource<Note>
+    suspend fun putNote(note: Note, userId: Int? = null): Resource<Note>
+    suspend fun syncOnLogin(userId: Int): Resource<Unit>
+    fun observeUserNotes(userId: Int): Flow<List<Note>>
+    fun observeLocalNotes(): Flow<List<Note>>
+    suspend fun fetchUserNotesFromApi(userId: Int): Resource<List<Note>>
+
 }
