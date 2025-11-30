@@ -1,5 +1,7 @@
 package ucne.edu.notablelists.presentation.Notes.edit
 
+import android.util.Log
+import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +10,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -15,6 +18,7 @@ import ucne.edu.notablelists.data.local.AlarmScheduler
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.TriggerSyncUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
+import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.notes.usecase.*
 import java.time.Instant
 import java.time.LocalDateTime
@@ -32,6 +36,8 @@ class NoteEditViewModel @Inject constructor(
     private val postNoteUseCase: PostNoteUseCase,
     private val putNoteUseCase: PutNoteUseCase,
     private val triggerSyncUseCase: TriggerSyncUseCase,
+    private val getUserIdUseCase: GetUserIdUseCase,
+    private val noteRepository: NoteRepository,
     private val alarmScheduler: AlarmScheduler,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -164,6 +170,7 @@ class NoteEditViewModel @Inject constructor(
 
             _state.update { it.copy(isLoading = true) }
 
+            val userId = getUserIdUseCase().first()
             val checklistString = serializeChecklist(currentState.checklist)
 
             val note = Note(
@@ -180,23 +187,36 @@ class NoteEditViewModel @Inject constructor(
                 deleteAt = currentState.deleteAt
             )
 
-            upsertNoteUseCase(note)
+            when (val result = upsertNoteUseCase(note, userId)) {
+                is Resource.Success -> {
+                    if (note.remoteId != null) {
+                        when (val apiResult = putNoteUseCase(note, userId)) {
+                            is Resource.Success -> {
+                                apiResult.data?.let { updatedNote ->
+                                    upsertNoteUseCase(updatedNote, userId)
+                                }
+                            }
+                            is Resource.Error -> {
+                                Log.e("UPDATE", "Failed to update on server: ${apiResult.message}")
+                            }
+                            else -> {}
+                        }
+                    } else {
+                        if (userId != null) {
+                            noteRepository.syncOnLogin(userId)
+                        }
+                    }
 
-            val apiResult = if (note.remoteId == null) {
-                postNoteUseCase(note)
-            } else {
-                putNoteUseCase(note)
-            }
-
-            if (apiResult is Resource.Success) {
-                apiResult.data?.let { remoteNote ->
-                    upsertNoteUseCase(remoteNote)
+                    _state.update { it.copy(isLoading = false) }
+                    sendUiEvent(NoteEditUiEvent.NavigateBack)
                 }
-                triggerSyncUseCase()
+                is Resource.Error -> {
+                    _state.update { it.copy(errorMessage = result.message, isLoading = false) }
+                }
+                is Resource.Loading -> {
+                    _state.update { it.copy(isLoading = true) }
+                }
             }
-
-            _state.update { it.copy(isLoading = false) }
-            sendUiEvent(NoteEditUiEvent.NavigateBack)
         }
     }
 
@@ -210,11 +230,20 @@ class NoteEditViewModel @Inject constructor(
                 if (remoteId != null) {
                     deleteRemoteNoteUseCase(remoteId)
                 }
-                deleteNoteUseCase(id)
-                triggerSyncUseCase()
+                when (val result = deleteNoteUseCase(id)) {
+                    is Resource.Success -> {
+                        _state.update { it.copy(showDeleteDialog = false) }
+                        sendUiEvent(NoteEditUiEvent.NavigateBack)
+                    }
+                    is Resource.Error -> {
+                        _state.update { it.copy(errorMessage = result.message, showDeleteDialog = false) }
+                    }
+                    else -> {}
+                }
+            } else {
+                _state.update { it.copy(showDeleteDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateBack)
             }
-            _state.update { it.copy(showDeleteDialog = false) }
-            sendUiEvent(NoteEditUiEvent.NavigateBack)
         }
     }
 
