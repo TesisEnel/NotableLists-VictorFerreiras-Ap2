@@ -1,5 +1,6 @@
 package ucne.edu.notablelists.presentation.Notes.list
 
+import android.util.Log
 import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -138,12 +139,33 @@ class NotesListViewModel @Inject constructor(
     }
 
     private fun loadNotes() {
-        getNotesUseCase().onEach { notes ->
-            _rawNotes.value = notes
-            _isLoading.value = false
-        }.launchIn(viewModelScope)
-    }
+        viewModelScope.launch {
+            _isLoading.value = true
 
+            val userId = getUserIdUseCase().first()
+
+            if (userId != null) {
+                Log.d("LOAD_NOTES", "User logged in, fetching from API...")
+                when (val apiResult = fetchUserNotesUseCase(userId)) {
+                    is Resource.Success -> {
+                        Log.d("LOAD_NOTES", "API fetch successful, got ${apiResult.data?.size ?: 0} notes")
+                    }
+                    is Resource.Error -> {
+                        Log.e("LOAD_NOTES", "API fetch failed: ${apiResult.message}")
+                    }
+                    else -> {}
+                }
+            } else {
+                Log.d("LOAD_NOTES", "User not logged in, loading local notes only")
+            }
+
+            getNotesUseCase().onEach { notes ->
+                Log.d("LOAD_NOTES", "Loaded ${notes.size} notes from local DB")
+                _rawNotes.value = notes
+                _isLoading.value = false
+            }.launchIn(viewModelScope)
+        }
+    }
     private fun filterAndSortNotes(notes: List<Note>, query: String, filter: NoteFilter): List<Note> {
         val filtered = if (query.isBlank()) {
             notes
@@ -177,7 +199,7 @@ class NotesListViewModel @Inject constructor(
     private fun toggleNoteFinished(note: Note) {
         viewModelScope.launch {
             val userId = getUserIdUseCase().first()
-            upsertNoteUseCase(note.copy(isFinished = !note.isFinished), userId) // ← Pass userId
+            upsertNoteUseCase(note.copy(isFinished = !note.isFinished), userId)
         }
     }
 
