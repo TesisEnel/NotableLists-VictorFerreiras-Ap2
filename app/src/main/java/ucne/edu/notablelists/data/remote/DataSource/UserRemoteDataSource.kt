@@ -117,4 +117,17 @@ class UserRemoteDataSource @Inject constructor(
             Resource.Error(e.localizedMessage ?: "Error de red")
         }
     }
+
+    suspend fun removeFriend(userId: Int, friendId: Int): Resource<Unit> {
+        return try {
+            val response = api.removeFriend(userId, friendId)
+            if (response.isSuccessful) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Error de red")
+        }
+    }
 }
