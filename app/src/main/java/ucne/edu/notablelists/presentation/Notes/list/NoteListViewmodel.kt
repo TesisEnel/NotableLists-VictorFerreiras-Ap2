@@ -54,7 +54,6 @@ class NotesListViewModel @Inject constructor(
         _showDeleteSelectionDialog,
         _pendingRequestCount
     ) { args ->
-        // Cuando combine recibe más de 5 flujos, devuelve un Array<Any>
         val notes = args[0] as List<Note>
         val filterState = args[1] as Pair<String, NoteFilter>
         val uiStatusState = args[2] as Triple<Boolean, String?, Boolean>
