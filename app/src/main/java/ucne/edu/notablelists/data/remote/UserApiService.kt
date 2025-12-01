@@ -45,4 +45,10 @@ interface UserApiService {
 
     @GET("api/Users/{userId}/friends")
     suspend fun getFriends(@Path("userId") userId: Int): Response<List<FriendDto>>
+
+    @DELETE("api/Users/{userId}/friends/{friendId}")
+    suspend fun removeFriend(
+        @Path("userId") userId: Int,
+        @Path("friendId") friendId: Int
+    ): Response<Unit>
 }
