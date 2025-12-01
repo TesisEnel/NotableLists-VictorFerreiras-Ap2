@@ -65,11 +65,11 @@ fun RegisterScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(state.isSuccess) {
-        state.isSuccess?.let { success ->
-            if (success) {
-                onNavigateToProfile()
-                viewModel.onEvent(UserEvent.ClearSuccess)
+    LaunchedEffect(Unit) {
+        viewModel.uiEffect.collect { effect ->
+            when (effect) {
+                is UserSideEffect.NavigateToProfile -> onNavigateToProfile()
+                is UserSideEffect.ShowError -> { }
             }
         }
     }
@@ -82,10 +82,7 @@ fun RegisterScreen(
             text = { Text("Si usas la aplicación sin cuenta podrías perder tus notas.") },
             confirmButton = {
                 Button(
-                    onClick = {
-                        viewModel.onEvent(UserEvent.DismissSkipDialog)
-                        onNavigateToProfile()
-                    },
+                    onClick = { viewModel.onEvent(UserEvent.SkipLogin) },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
