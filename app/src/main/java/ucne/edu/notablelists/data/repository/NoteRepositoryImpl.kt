@@ -239,6 +239,7 @@ class NoteRepositoryImpl @Inject constructor(
     override suspend fun fetchUserNotesFromApi(userId: Int): Resource<List<Note>> {
         return try {
             Log.d("API_FETCH", "Fetching notes from API for user: $userId")
+            clearLocalNotes()
             val result = remoteDataSource.getUserNotes(userId)
 
             when (result) {
