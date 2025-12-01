@@ -21,11 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,19 +53,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
 import ucne.edu.notablelists.domain.friends.model.Friend
 import ucne.edu.notablelists.domain.friends.model.PendingRequest
 import ucne.edu.notablelists.domain.users.model.User
@@ -79,9 +75,7 @@ fun FriendsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     var showAddFriendSheet by rememberSaveable { mutableStateOf(false) }
-    var friendToDelete by remember { mutableStateOf<Friend?>(null) }
     var localSearchQuery by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(state.errorMessage) {
@@ -156,7 +150,7 @@ fun FriendsScreen(
                         friends = state.friends,
                         searchQuery = localSearchQuery,
                         onSearchQueryChange = { localSearchQuery = it },
-                        onDeleteClick = { friendToDelete = it }
+                        onDeleteClick = { viewModel.onEvent(FriendsEvent.OnShowDeleteFriendDialog(it)) }
                     )
                     1 -> RequestsListSection(
                         requests = state.pendingRequests,
@@ -185,25 +179,22 @@ fun FriendsScreen(
             }
         }
 
-        if (friendToDelete != null) {
+        if (state.friendToDelete != null) {
             AlertDialog(
-                onDismissRequest = { friendToDelete = null },
+                onDismissRequest = { viewModel.onEvent(FriendsEvent.OnDismissDeleteFriendDialog) },
+                icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
                 title = { Text(text = "Eliminar amigo") },
-                text = { Text(text = "¿Estás seguro de que deseas eliminar a ${friendToDelete?.username} de tus amigos?") },
+                text = { Text(text = "¿Estás seguro de que deseas eliminar a ${state.friendToDelete?.username} de tus amigos?") },
                 confirmButton = {
                     Button(
-                        onClick = {
-                            // Aquí iría el evento de eliminar si tuvieras el usecase,
-                            // por ahora solo cerramos el diálogo visualmente.
-                            friendToDelete = null
-                        },
+                        onClick = { viewModel.onEvent(FriendsEvent.OnDeleteFriend) },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text("Eliminar")
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { friendToDelete = null }) {
+                    TextButton(onClick = { viewModel.onEvent(FriendsEvent.OnDismissDeleteFriendDialog) }) {
                         Text("Cancelar")
                     }
                 }
@@ -376,7 +367,6 @@ fun RequestsListSection(
         }
     }
 }
-
 
 @Composable
 fun AddFriendContent(

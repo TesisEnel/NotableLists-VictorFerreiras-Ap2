@@ -18,6 +18,7 @@ import ucne.edu.notablelists.domain.friends.model.PendingRequest
 import ucne.edu.notablelists.domain.friends.usecase.AcceptFriendRequestUseCase
 import ucne.edu.notablelists.domain.friends.usecase.GetFriendsUseCase
 import ucne.edu.notablelists.domain.friends.usecase.GetPendingRequestUseCase
+import ucne.edu.notablelists.domain.friends.usecase.RemoveFriendUseCase
 import ucne.edu.notablelists.domain.friends.usecase.SearchUserUseCase
 import ucne.edu.notablelists.domain.friends.usecase.SendFriendRequestUseCase
 import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
@@ -31,6 +32,7 @@ class FriendsViewModel @Inject constructor(
     private val getPendingRequestUseCase: GetPendingRequestUseCase,
     private val searchUserUseCase: SearchUserUseCase,
     private val sendFriendRequestUseCase: SendFriendRequestUseCase,
+    private val removeFriendUseCase: RemoveFriendUseCase,
     private val getUserIdUseCase: GetUserIdUseCase
 ) : ViewModel() {
 
@@ -72,6 +74,15 @@ class FriendsViewModel @Inject constructor(
             }
             FriendsEvent.OnDismissError -> {
                 _state.update { it.copy(errorMessage = null, successMessage = null) }
+            }
+            is FriendsEvent.OnShowDeleteFriendDialog -> {
+                _state.update { it.copy(friendToDelete = event.friend) }
+            }
+            FriendsEvent.OnDismissDeleteFriendDialog -> {
+                _state.update { it.copy(friendToDelete = null) }
+            }
+            FriendsEvent.OnDeleteFriend -> {
+                removeFriend()
             }
         }
     }
@@ -155,6 +166,26 @@ class FriendsViewModel @Inject constructor(
             when (val result = acceptFriendRequestUseCase(userId, friendshipId)) {
                 is Resource.Success -> {
                     _state.update { it.copy(successMessage = "Solicitud aceptada") }
+                    loadData()
+                }
+                is Resource.Error -> {
+                    _state.update { it.copy(errorMessage = result.message) }
+                }
+                is Resource.Loading -> {}
+            }
+        }
+    }
+
+    private fun removeFriend() {
+        val userId = currentUserId ?: return
+        val friendToDelete = _state.value.friendToDelete ?: return
+
+        viewModelScope.launch {
+            _state.update { it.copy(friendToDelete = null) }
+
+            when (val result = removeFriendUseCase(userId, friendToDelete.id)) {
+                is Resource.Success -> {
+                    _state.update { it.copy(successMessage = "Amigo eliminado") }
                     loadData()
                 }
                 is Resource.Error -> {

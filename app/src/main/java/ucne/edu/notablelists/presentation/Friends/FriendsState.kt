@@ -13,5 +13,6 @@ data class FriendsState(
     val searchQuery: String = "",
     val selectedTabIndex: Int = 0,
     val errorMessage: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val friendToDelete: Friend? = null
 )
