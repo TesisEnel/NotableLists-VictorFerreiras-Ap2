@@ -4,6 +4,11 @@ import retrofit2.Response
 import retrofit2.http.*
 import ucne.edu.notablelists.data.remote.dto.NoteRequestDto
 import ucne.edu.notablelists.data.remote.dto.NoteResponseDto
+import ucne.edu.notablelists.data.remote.dto.ShareRequestDto
+import ucne.edu.notablelists.data.remote.dto.ShareResponseDto
+import ucne.edu.notablelists.data.remote.dto.SharedNoteByMeDto
+import ucne.edu.notablelists.data.remote.dto.SharedNoteWithDetailsDto
+import ucne.edu.notablelists.data.remote.dto.UpdateSharedStatusResponseDto
 
 interface NoteApiService {
 
@@ -43,4 +48,33 @@ interface NoteApiService {
         @Path("userId") userId: Int,
         @Path("id") id: Int
     ): Response<Unit>
+
+    @GET("api/Notes/Users/{userId}/Notes/{id}")
+    suspend fun getUserNoteById(
+        @Path("userId") userId: Int,
+        @Path("id") id: Int
+    ): Response<NoteResponseDto>
+
+    @POST("api/Notes/Users/{userId}/Notes/{noteId}/share")
+    suspend fun shareNoteWithFriend(
+        @Path("userId") userId: Int,
+        @Path("noteId") noteId: Int,
+        @Body shareDto: ShareRequestDto
+    ): Response<ShareResponseDto>
+
+    @GET("api/Notes/Users/{userId}/shared-notes")
+    suspend fun getNotesSharedWithMe(
+        @Path("userId") userId: Int
+    ): Response<List<SharedNoteWithDetailsDto>>
+
+    @GET("api/Notes/Users/{userId}/shared-by-me")
+    suspend fun getNotesSharedByMe(
+        @Path("userId") userId: Int
+    ): Response<List<SharedNoteByMeDto>>
+
+    @DELETE("api/Notes/Users/{userId}/shared-notes/{sharedNoteId}")
+    suspend fun updateSharedNoteStatus(
+        @Path("userId") userId: Int,
+        @Path("sharedNoteId") sharedNoteId: Int
+    ): Response<UpdateSharedStatusResponseDto>
 }
