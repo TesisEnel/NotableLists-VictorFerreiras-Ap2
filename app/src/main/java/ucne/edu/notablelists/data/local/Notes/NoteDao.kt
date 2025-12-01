@@ -32,4 +32,7 @@ interface NoteDao {
     suspend fun linkNotesToUser(userId: Int)
     @Query("SELECT * FROM notes")
     suspend fun getAllNotes(): List<NoteEntity>
+
+    @Query("DELETE FROM notes")
+    suspend fun deleteAllNotes()
 }
