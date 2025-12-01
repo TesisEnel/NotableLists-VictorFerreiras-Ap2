@@ -3,7 +3,6 @@ package ucne.edu.notablelists.data.local.Users
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
-import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
