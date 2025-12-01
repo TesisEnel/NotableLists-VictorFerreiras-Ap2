@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import ucne.edu.notablelists.presentation.Notes.list.*
 import ucne.edu.notablelists.presentation.users.UserEvent
 import ucne.edu.notablelists.presentation.users.UserState
@@ -108,6 +110,9 @@ fun NotesListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var isFabVisible by remember { mutableStateOf(true) }
     val focusManager = LocalFocusManager.current
+
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
@@ -260,13 +265,19 @@ fun NotesListScreen(
 
             FilterChipsSection(
                 filters = state.filterChips,
-                onFilterSelected = { onEvent(NotesListEvent.OnFilterChange(it)) }
+                onFilterSelected = {
+                    onEvent(NotesListEvent.OnFilterChange(it))
+                    scope.launch {
+                        listState.animateScrollToItem(0)
+                    }
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(bottom = 88.dp),
                     modifier = Modifier.fillMaxSize()
@@ -287,11 +298,6 @@ fun NotesListScreen(
 
                     items(state.notes, key = { it.id }) { noteUi ->
                         NoteItemCard(
-                            modifier = Modifier.animateItem(
-                                placementSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy),
-                                fadeInSpec = spring(stiffness = Spring.StiffnessMedium),
-                                fadeOutSpec = spring(stiffness = Spring.StiffnessMedium)
-                            ),
                             noteUi = noteUi,
                             isSelectionMode = state.isSelectionMode,
                             onClick = { onEvent(NotesListEvent.OnNoteClick(noteUi.id)) },
