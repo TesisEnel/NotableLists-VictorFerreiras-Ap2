@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import ucne.edu.notablelists.navigation.Screen
 import ucne.edu.notablelists.presentation.Notes.edit.NoteEditScreen
+import ucne.edu.notablelists.presentation.friends.FriendsScreen
 import ucne.edu.notablelists.presentation.notes_list.NotesListRoute
 import ucne.edu.notablelists.presentation.users.LoginScreen
 import ucne.edu.notablelists.presentation.users.RegisterScreen
@@ -55,6 +56,9 @@ fun AppNavHost() {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0)
                         }
+                    },
+                    onNavigateToFriends = {
+                        navController.navigate(Screen.Friends.route)
                     }
                 )
             }
@@ -70,6 +74,12 @@ fun AppNavHost() {
                 )
             ) {
                 NoteEditScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Screen.Friends.route) {
+                FriendsScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
