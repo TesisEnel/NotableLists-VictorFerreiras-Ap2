@@ -26,7 +26,7 @@ import ucne.edu.notablelists.data.repository.NoteRepositoryImpl
 import ucne.edu.notablelists.data.repository.SessionRepositoryImpl
 import ucne.edu.notablelists.data.repository.UserRepositoryImpl
 import ucne.edu.notablelists.domain.auth.AuthRepository
-import ucne.edu.notablelists.domain.friends.FriendsRepository
+import ucne.edu.notablelists.domain.friends.repository.FriendsRepository
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.session.SessionRepository
 import ucne.edu.notablelists.domain.users.repository.UserRepository

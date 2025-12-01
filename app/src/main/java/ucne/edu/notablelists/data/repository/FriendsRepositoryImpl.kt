@@ -1,6 +1,6 @@
 package ucne.edu.notablelists.data.repository
 
-import ucne.edu.notablelists.domain.friends.FriendsRepository
+import ucne.edu.notablelists.domain.friends.repository.FriendsRepository
 import ucne.edu.notablelists.data.remote.DataSource.UserRemoteDataSource
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.data.remote.dto.FriendDto

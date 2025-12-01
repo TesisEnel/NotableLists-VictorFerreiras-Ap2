@@ -1,4 +1,4 @@
-package ucne.edu.notablelists.domain.friends
+package ucne.edu.notablelists.domain.friends.repository
 
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.data.remote.dto.FriendDto
