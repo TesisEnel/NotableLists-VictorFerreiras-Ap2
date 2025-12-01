@@ -267,4 +267,7 @@ class NoteRepositoryImpl @Inject constructor(
             Resource.Error("Network error: ${e.message}")
         }
     }
+    override suspend fun clearLocalNotes() {
+        localDataSource.deleteAllNotes()
+    }
 }
