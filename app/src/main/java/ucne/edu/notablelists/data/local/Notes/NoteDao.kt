@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
-import ucne.edu.notablelists.data.local.Notes.NoteEntity
 
 @Dao
 interface NoteDao {
