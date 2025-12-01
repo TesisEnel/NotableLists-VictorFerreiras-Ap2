@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,7 @@ import ucne.edu.notablelists.presentation.Notes.list.*
 import ucne.edu.notablelists.presentation.users.UserEvent
 import ucne.edu.notablelists.presentation.users.UserState
 import ucne.edu.notablelists.presentation.users.UserViewModel
+import ucne.edu.notablelists.ui.theme.NotableListsTheme
 
 @Composable
 fun NotesListRoute(
@@ -381,5 +383,46 @@ fun NoteStyle.getColors(): Pair<Color, Color> {
         NoteStyle.Secondary -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         NoteStyle.Primary -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
         NoteStyle.Error -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    }
+}
+
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun PreviewNotesListRoute() {
+    NotableListsTheme {
+        NotesListScreen(
+            state = NotesListState(
+                notes = listOf(
+                    NoteUiItem(
+                        id = "1",
+                        title = "Meeting Notes",
+                        description = "Discussed project timeline and deliverables with the team.",
+                        style = NoteStyle.Secondary,
+                        priorityChips = listOf(PriorityUiItem("Media", NoteStyle.Primary)),
+                        tags = listOf(TagUiItem("work", NoteStyle.Secondary))
+                    ),
+                    NoteUiItem(
+                        id = "2",
+                        title = "Shopping List",
+                        description = "Milk, Eggs, Bread, Fruits, Vegetables",
+                        style = NoteStyle.Primary,
+                        priorityChips = emptyList(),
+                        tags = listOf(TagUiItem("personal", NoteStyle.Primary))
+                    )
+                ),
+                filterChips = NoteFilter.entries.map { filter ->
+                    FilterUiItem(
+                        filter = filter,
+                        label = filter.label,
+                        isSelected = filter == NoteFilter.DATE
+                    )
+                },
+                searchQuery = ""
+            ),
+            userState = UserState(currentUser = "john_doe"),
+            onEvent = {},
+            onUserEvent = {},
+            onNavigateToLogin = {}
+        )
     }
 }
