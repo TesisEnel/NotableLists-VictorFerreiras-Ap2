@@ -148,9 +148,13 @@ class NotesListViewModel @Inject constructor(
             if (userId != null) {
                 when (val apiResult = fetchUserNotesUseCase(userId)) {
                     is Resource.Success -> {
-                        Log.d("LOAD_NOTES", "API fetch successful, got ${apiResult.data?.size ?: 0} notes")
+                        apiResult.data?.let { apiNotes ->
+                            _rawNotes.value = apiNotes
+                            Log.d("LOAD_NOTES", "API fetch successful, got ${apiNotes.size} notes")
+                        }
                     }
                     is Resource.Error -> {
+                        Log.e("LOAD_NOTES", "API fetch failed: ${apiResult.message}")
                     }
                     else -> {}
                 }
@@ -211,6 +215,7 @@ class NotesListViewModel @Inject constructor(
                 if (result is Resource.Error) {
                     _errorMessage.value = result.message
                 }
+                loadNotes()
             }
             _isRefreshing.value = false
         }
