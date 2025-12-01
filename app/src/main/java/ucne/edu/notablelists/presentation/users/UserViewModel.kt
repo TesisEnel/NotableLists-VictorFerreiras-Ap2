@@ -16,18 +16,20 @@ import ucne.edu.notablelists.domain.session.usecase.GetSessionUseCase
 import ucne.edu.notablelists.domain.session.usecase.SaveSessionUseCase
 import ucne.edu.notablelists.domain.users.usecase.PostUserUseCase
 import ucne.edu.notablelists.domain.users.usecase.ValidateUserUseCase
+import ucne.edu.notablelists.domain.utils.usecase.LoginUserUseCase
+import ucne.edu.notablelists.domain.utils.usecase.SyncUserDataUseCase
 import javax.inject.Inject
 
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val postUserUseCase: PostUserUseCase,
     private val validateUseCase: ValidateUserUseCase,
-    private val authRepository: AuthRepository,
     private val getSessionUseCase: GetSessionUseCase,
     private val saveSessionUseCase: SaveSessionUseCase,
-    private val noteRepository: NoteRepository, // ← Add this for sync
     private val getUserIdUseCase: GetUserIdUseCase,
-    private val clearSessionUseCase: ClearSessionUseCase
+    private val clearSessionUseCase: ClearSessionUseCase,
+    private val loginUserUseCase: LoginUserUseCase,
+    private val syncUserDataUseCase: SyncUserDataUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UserState())
@@ -101,7 +103,7 @@ class UserViewModel @Inject constructor(
                         val userId = newUser?.remoteId
                         if (userId != null) {
                             saveSessionUseCase(userId, username)
-                            noteRepository.syncOnLogin(userId)
+                            syncUserDataUseCase(userId)
                         }
                         _state.update {
                             it.copy(
@@ -149,14 +151,14 @@ class UserViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val result = authRepository.login(username, password)
+                val result = loginUserUseCase(username, password)
                 when (result) {
                     is Resource.Success -> {
                         val loggedInUser = result.data
                         val userId = loggedInUser?.remoteId
                         if (userId != null) {
                             saveSessionUseCase(userId, username)
-                            noteRepository.syncOnLogin(userId)
+                            syncUserDataUseCase(userId)
                         }
                         _state.update {
                             it.copy(
