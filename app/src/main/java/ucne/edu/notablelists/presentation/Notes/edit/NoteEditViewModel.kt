@@ -21,6 +21,7 @@ import ucne.edu.notablelists.domain.notes.usecase.*
 import ucne.edu.notablelists.domain.notification.CancelReminderUseCase
 import ucne.edu.notablelists.domain.notification.ScheduleReminderUseCase
 import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
+import ucne.edu.notablelists.domain.sharednote.usecase.GetSharedNoteDetailsUseCase
 import ucne.edu.notablelists.domain.sharednote.usecase.ShareNoteUseCase
 import java.time.Instant
 import java.time.LocalDateTime
@@ -42,6 +43,7 @@ class NoteEditViewModel @Inject constructor(
     private val cancelReminderUseCase: CancelReminderUseCase,
     private val getFriendsUseCase: GetFriendsUseCase,
     private val shareNoteUseCase: ShareNoteUseCase,
+    private val getSharedNoteDetailsUseCase: GetSharedNoteDetailsUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -250,8 +252,24 @@ class NoteEditViewModel @Inject constructor(
     private fun loadNote(id: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            val note = getNoteUseCase(id)
             val userId = getUserIdUseCase().first()
+
+            var note = getNoteUseCase(id)
+
+            if (note == null && userId != null) {
+                val remoteId = id.toIntOrNull()
+                if (remoteId != null) {
+                    when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
+                        is Resource.Success -> {
+                            note = result.data
+                        }
+                        is Resource.Error -> {
+                            _state.update { it.copy(errorMessage = "Error cargando nota compartida: ${result.message}") }
+                        }
+                        else -> {}
+                    }
+                }
+            }
 
             note?.let { n ->
                 _state.update { state ->
@@ -274,7 +292,8 @@ class NoteEditViewModel @Inject constructor(
                         checklist = parseChecklist(n.checklist),
                         availableTags = updatedTags,
                         isLoading = false,
-                        isOwner = isOwner
+                        isOwner = isOwner,
+                        noteOwnerId = n.userId
                     )
                 }
             } ?: _state.update { it.copy(isLoading = false) }
@@ -338,13 +357,13 @@ class NoteEditViewModel @Inject constructor(
 
             _state.update { it.copy(isLoading = true) }
 
-            val userId = getUserIdUseCase().first()
+            val effectiveOwnerId = currentState.noteOwnerId ?: currentState.currentUserId
             val checklistString = serializeChecklist(currentState.checklist)
 
             val note = Note(
                 id = currentState.id ?: UUID.randomUUID().toString(),
                 remoteId = currentState.remoteId,
-                userId = currentState.currentUserId,
+                userId = effectiveOwnerId,
                 title = currentState.title,
                 description = currentState.description,
                 tag = currentState.tag,
@@ -354,13 +373,13 @@ class NoteEditViewModel @Inject constructor(
                 checklist = checklistString,
             )
 
-            when (val result = upsertNoteUseCase(note, userId)) {
+            when (val result = upsertNoteUseCase(note, effectiveOwnerId)) {
                 is Resource.Success -> {
-                    if (note.remoteId != null && userId != null) {
-                        when (val apiResult = putNoteUseCase(note, userId)) {
+                    if (note.remoteId != null && effectiveOwnerId != null) {
+                        when (val apiResult = putNoteUseCase(note, effectiveOwnerId)) {
                             is Resource.Success -> {
                                 apiResult.data?.let { updatedNote ->
-                                    upsertNoteUseCase(updatedNote, userId)
+                                    upsertNoteUseCase(updatedNote, effectiveOwnerId)
                                 }
                             }
                             is Resource.Error -> {
@@ -369,8 +388,8 @@ class NoteEditViewModel @Inject constructor(
                             else -> {}
                         }
                     } else {
-                        if (userId != null) {
-                            noteRepository.syncOnLogin(userId)
+                        if (effectiveOwnerId != null && currentState.isOwner) {
+                            noteRepository.syncOnLogin(effectiveOwnerId)
                         }
                     }
 
