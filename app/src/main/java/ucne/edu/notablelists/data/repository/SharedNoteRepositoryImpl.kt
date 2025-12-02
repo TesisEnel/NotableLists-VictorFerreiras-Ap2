@@ -100,9 +100,20 @@ class SharedNoteRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getSharedNoteDetails(userId: Int, noteId: Int): Resource<SharedNoteWithDetailsDto?> {
+    override suspend fun getSharedNoteDetails(userId: Int, noteId: Int): Resource<Note> {
         return try {
-            remoteDataSource.getSharedNoteDetails(userId, noteId)
+            val result = remoteDataSource.getSharedNoteDetails(userId, noteId)
+
+            if (result is Resource.Success) {
+                val dto = result.data
+                if (dto != null) {
+                    Resource.Success(dto.toDomainNote())
+                } else {
+                    Resource.Error("Nota no encontrada o vacía")
+                }
+            } else {
+                Resource.Error(result.message ?: "Error obteniendo detalles de la nota compartida")
+            }
         } catch (e: Exception) {
             Resource.Error(e.message ?: "Unknown error")
         }

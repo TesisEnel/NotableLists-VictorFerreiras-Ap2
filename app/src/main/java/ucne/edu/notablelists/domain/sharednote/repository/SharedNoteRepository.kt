@@ -12,7 +12,7 @@ interface SharedNoteRepository {
     suspend fun getNotesSharedWithMe(userId: Int): Resource<List<Note>>
     suspend fun getNotesSharedByMe(userId: Int): Resource<List<SharedNoteByMeDto>>
     suspend fun updateSharedNoteStatus(userId: Int, sharedNoteId: Int): Resource<UpdateSharedStatusResponseDto>
-    suspend fun getSharedNoteDetails(userId: Int, noteId: Int): Resource<SharedNoteWithDetailsDto?>
+    suspend fun getSharedNoteDetails(userId: Int, noteId: Int): Resource<Note>
     suspend fun canAccessNote(userId: Int, noteId: Int): Resource<Boolean>
     suspend fun getAllSharedNotes(userId: Int): Resource<Pair<List<SharedNoteWithDetailsDto>, List<SharedNoteByMeDto>>>
     suspend fun syncSharedNotes(userId: Int): Resource<Unit>
