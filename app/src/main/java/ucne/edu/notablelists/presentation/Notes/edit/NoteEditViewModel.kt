@@ -47,6 +47,7 @@ class NoteEditViewModel @Inject constructor(
     private val getFriendsUseCase: GetFriendsUseCase,
     private val shareNoteUseCase: ShareNoteUseCase,
     private val getSharedNoteDetailsUseCase: GetSharedNoteDetailsUseCase,
+    private val getRemoteNoteUseCase: GetRemoteNoteUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -385,26 +386,30 @@ class NoteEditViewModel @Inject constructor(
                 try {
                     delay(5000)
                     if (!isDirty) {
-                        when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
-                            is Resource.Success -> {
-                                result.data?.let { n ->
-                                    _state.update { state ->
-                                        if (!isDirty) {
-                                            state.copy(
-                                                title = n.title,
-                                                description = n.description,
-                                                tag = n.tag,
-                                                priority = n.priority,
-                                                isFinished = n.isFinished,
-                                                checklist = parseChecklist(n.checklist)
-                                            )
-                                        } else {
-                                            state
-                                        }
+                        val isOwner = _state.value.isOwner
+                        val result = if (isOwner) {
+                            getRemoteNoteUseCase(remoteId)
+                        } else {
+                            getSharedNoteDetailsUseCase(userId, remoteId)
+                        }
+
+                        if (result is Resource.Success) {
+                            result.data?.let { n ->
+                                _state.update { state ->
+                                    if (!isDirty) {
+                                        state.copy(
+                                            title = n.title,
+                                            description = n.description,
+                                            tag = n.tag,
+                                            priority = n.priority,
+                                            isFinished = n.isFinished,
+                                            checklist = parseChecklist(n.checklist)
+                                        )
+                                    } else {
+                                        state
                                     }
                                 }
                             }
-                            else -> {}
                         }
                     }
                 } catch (e: Exception) {
