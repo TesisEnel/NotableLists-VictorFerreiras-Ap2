@@ -3,9 +3,11 @@ package ucne.edu.notablelists.data.repository
 import android.util.Log
 import ucne.edu.notablelists.data.local.Notes.NoteDao
 import ucne.edu.notablelists.data.local.Notes.SharedNoteEntity
+import ucne.edu.notablelists.data.mappers.toDomainNote
 import ucne.edu.notablelists.data.remote.DataSource.NoteRemoteDataSource
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.data.remote.dto.*
+import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.sharednote.repository.SharedNoteRepository
 import javax.inject.Inject
 
@@ -45,11 +47,21 @@ class SharedNoteRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getNotesSharedWithMe(userId: Int): Resource<List<SharedNoteWithDetailsDto>> {
+    override suspend fun getNotesSharedWithMe(userId: Int): Resource<List<Note>> {
         return try {
-            remoteDataSource.getNotesSharedWithMe(userId)
+            val result = remoteDataSource.getNotesSharedWithMe(userId)
+
+            when (result) {
+                is Resource.Success -> {
+                    val dtos = result.data ?: emptyList()
+                    val notes = dtos.map { it.toDomainNote() }
+                    Resource.Success(notes)
+                }
+                is Resource.Error -> Resource.Error(result.message)
+                is Resource.Loading -> Resource.Loading()
+            }
         } catch (e: Exception) {
-            Resource.Error(e.message ?: "Unknown error")
+            Resource.Error(e.message ?: "Network error")
         }
     }
 
