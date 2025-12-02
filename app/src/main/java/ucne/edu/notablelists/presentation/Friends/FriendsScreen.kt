@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
@@ -154,7 +155,8 @@ fun FriendsScreen(
                     )
                     1 -> RequestsListSection(
                         requests = state.pendingRequests,
-                        onAccept = { viewModel.onEvent(FriendsEvent.OnAcceptFriendRequest(it)) }
+                        onAccept = { viewModel.onEvent(FriendsEvent.OnAcceptFriendRequest(it)) },
+                        onDecline = { viewModel.onEvent(FriendsEvent.OnDeclineFriendRequest(it)) }
                     )
                 }
             }
@@ -304,7 +306,8 @@ fun FriendItem(
 @Composable
 fun RequestsListSection(
     requests: List<PendingRequest>,
-    onAccept: (Int) -> Unit
+    onAccept: (Int) -> Unit,
+    onDecline: (Int) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -345,6 +348,20 @@ fun RequestsListSection(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Aceptar")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(
+                        onClick = { onDecline(request.id) },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Rechazar",
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Rechazar")
                     }
                 }
             }
