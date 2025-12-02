@@ -1,8 +1,6 @@
 package ucne.edu.notablelists.domain.sharednote.usecase
 
-import ucne.edu.notablelists.data.mappers.toDomainNote
 import ucne.edu.notablelists.data.remote.Resource
-import ucne.edu.notablelists.data.remote.dto.SharedNoteWithDetailsDto
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.sharednote.repository.SharedNoteRepository
 import javax.inject.Inject
