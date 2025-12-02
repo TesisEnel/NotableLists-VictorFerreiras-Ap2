@@ -50,4 +50,18 @@ class FriendsRepositoryImpl @Inject constructor(
     override suspend fun removeFriend(userId: Int, friendId: Int): Resource<Unit> {
         return remoteDataSource.removeFriend(userId, friendId)
     }
+
+    override suspend fun declineFriendRequest(userId: Int, friendshipId: Int): Resource<Unit> {
+        return try {
+            val result = remoteDataSource.declineFriendRequest(userId, friendshipId)
+
+            when (result) {
+                is Resource.Success -> Resource.Success(Unit)
+                is Resource.Error -> Resource.Error(result.message ?: "Failed to decline request")
+                is Resource.Loading -> Resource.Loading()
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.message ?: "Network error")
+        }
+    }
 }
