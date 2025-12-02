@@ -1,5 +1,6 @@
 package ucne.edu.notablelists.presentation.Notes.list
 
+import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,7 +10,6 @@ import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.friends.usecase.GetPendingRequestUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.usecase.*
-import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import ucne.edu.notablelists.domain.sharednote.usecase.GetNotesSharedWithMeUseCase
 import ucne.edu.notablelists.domain.sharednote.usecase.SyncSharedNotesUseCase
 import javax.inject.Inject
@@ -51,7 +51,9 @@ class NotesListViewModel @Inject constructor(
     }
 
     private val _combinedNotes = combine(_localNotes, _sharedNotes) { local, shared ->
-        local + shared
+        val localIds = local.map { it.id }.toSet()
+        val uniqueShared = shared.filter { !localIds.contains(it.id) }
+        local + uniqueShared
     }
 
     @Suppress("UNCHECKED_CAST")
