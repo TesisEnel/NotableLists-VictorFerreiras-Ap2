@@ -5,13 +5,16 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.friends.usecase.GetFriendsUseCase
@@ -52,6 +55,8 @@ class NoteEditViewModel @Inject constructor(
 
     private val _uiEvent = Channel<NoteEditUiEvent>()
     val uiEvent = _uiEvent.receiveAsFlow()
+
+    private var pollingJob: Job? = null
 
     init {
         savedStateHandle.get<String>("noteId")?.let { noteId ->
@@ -262,6 +267,7 @@ class NoteEditViewModel @Inject constructor(
                     when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
                         is Resource.Success -> {
                             note = result.data
+                            startPolling(userId, remoteId)
                         }
                         is Resource.Error -> {
                             _state.update { it.copy(errorMessage = "Error cargando nota compartida: ${result.message}") }
@@ -297,6 +303,32 @@ class NoteEditViewModel @Inject constructor(
                     )
                 }
             } ?: _state.update { it.copy(isLoading = false) }
+        }
+    }
+
+    private fun startPolling(userId: Int, remoteId: Int) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (isActive) {
+                delay(5000)
+                when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
+                    is Resource.Success -> {
+                        result.data?.let { n ->
+                            _state.update { state ->
+                                state.copy(
+                                    title = n.title,
+                                    description = n.description,
+                                    tag = n.tag,
+                                    priority = n.priority,
+                                    isFinished = n.isFinished,
+                                    checklist = parseChecklist(n.checklist)
+                                )
+                            }
+                        }
+                    }
+                    else -> {}
+                }
+            }
         }
     }
 
