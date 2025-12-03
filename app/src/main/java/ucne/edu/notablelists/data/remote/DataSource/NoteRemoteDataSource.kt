@@ -159,7 +159,7 @@ class NoteRemoteDataSource @Inject constructor(
             } else {
                 when (response.code()) {
                     404 -> Resource.Error("Nota o usuario no encontrado")
-                    400 -> Resource.Error("La nota ya está compartida o no son amigos")
+                    400 -> Resource.Error("Ya compartiste esta nota con este amigo ")
                     else -> Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
                 }
             }
