@@ -7,13 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.friends.usecase.GetFriendsUseCase
@@ -23,10 +17,7 @@ import ucne.edu.notablelists.domain.notes.usecase.*
 import ucne.edu.notablelists.domain.notification.CancelReminderUseCase
 import ucne.edu.notablelists.domain.notification.ScheduleReminderUseCase
 import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
-import ucne.edu.notablelists.domain.sharednote.usecase.GetAllSharedNotesUseCase
-import ucne.edu.notablelists.domain.sharednote.usecase.GetSharedNoteDetailsUseCase
-import ucne.edu.notablelists.domain.sharednote.usecase.ShareNoteUseCase
-import ucne.edu.notablelists.domain.sharednote.usecase.UpdateSharedNoteStatusUseCase
+import ucne.edu.notablelists.domain.sharednote.usecase.*
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -55,130 +46,58 @@ class NoteEditViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NoteEditState())
-    val state: StateFlow<NoteEditState> = _state.asStateFlow()
+    val state = _state.asStateFlow()
 
-    private val _uiEvent = Channel<NoteEditUiEvent>()
-    val uiEvent = _uiEvent.receiveAsFlow()
+    private val _sideEffect = Channel<NoteEditSideEffect>()
+    val sideEffect = _sideEffect.receiveAsFlow()
 
-    private var pollingJob: Job? = null
     private var autoSaveJob: Job? = null
-
-    @Volatile
+    private var pollingJob: Job? = null
     private var isDirty = false
 
     init {
         viewModelScope.launch {
             val userId = getUserIdUseCase().first() ?: 0
             _state.update { it.copy(currentUserId = userId) }
-
-            savedStateHandle.get<String>("noteId")?.let { noteId ->
-                if (noteId.isNotBlank()) {
-                    loadNote(noteId, userId)
-                }
+            val noteId = savedStateHandle.get<String>("noteId")
+            if (!noteId.isNullOrBlank()) {
+                loadNote(noteId, userId)
             }
         }
     }
 
     fun onEvent(event: NoteEditEvent) {
-        when (event) {
-            is NoteEditEvent.EnteredTitle -> updateStateAndScheduleSave { it.copy(title = event.value) }
-            is NoteEditEvent.EnteredDescription -> updateStateAndScheduleSave { it.copy(description = event.value) }
-            is NoteEditEvent.EnteredTag -> updateStateAndScheduleSave { it.copy(tag = event.value) }
-            is NoteEditEvent.ChangePriority -> updateStateAndScheduleSave { it.copy(priority = event.value) }
-            is NoteEditEvent.SetReminder -> {
-                val localDateTime = getLocalDateTime(event.date, event.timeHour, event.timeMinute)
-                val formattedDate = formatDateTime(localDateTime)
-                val noteId = _state.value.id ?: UUID.randomUUID().toString()
-                updateStateAndScheduleSave { it.copy(id = noteId, reminder = formattedDate) }
-                scheduleReminderUseCase(noteId, _state.value.title.ifBlank { "Sin Título" }, localDateTime)
-            }
-            is NoteEditEvent.AddChecklistItem -> {
-                val newItem = ChecklistItem("", false)
-                updateStateAndScheduleSave { it.copy(checklist = it.checklist + newItem) }
-            }
-            is NoteEditEvent.UpdateChecklistItem -> {
-                updateStateAndScheduleSave {
-                    val updatedList = it.checklist.mapIndexed { index, item ->
-                        if (index == event.index) item.copy(text = event.text) else item
-                    }
-                    it.copy(checklist = updatedList)
-                }
-            }
-            is NoteEditEvent.ToggleChecklistItem -> {
-                updateStateAndScheduleSave {
-                    val updatedList = it.checklist.mapIndexed { index, item ->
-                        if (index == event.index) item.copy(isDone = !item.isDone) else item
-                    }
-                    it.copy(checklist = updatedList)
-                }
-            }
-            is NoteEditEvent.RemoveChecklistItem -> {
-                updateStateAndScheduleSave {
-                    val updatedList = it.checklist.toMutableList().apply { removeAt(event.index) }
-                    it.copy(checklist = updatedList)
-                }
-            }
-            is NoteEditEvent.ToggleFinished -> updateStateAndScheduleSave { it.copy(isFinished = event.isFinished) }
-            is NoteEditEvent.ShowDeleteDialog -> _state.update { it.copy(showDeleteDialog = true) }
-            is NoteEditEvent.DismissDeleteDialog -> _state.update { it.copy(showDeleteDialog = false) }
-            is NoteEditEvent.DeleteNote -> handleDeleteAction()
-            is NoteEditEvent.OnBackClick -> saveNoteAndExit()
-            is NoteEditEvent.ClearReminder -> {
-                _state.value.id?.let { cancelReminderUseCase(it) }
-                updateStateAndScheduleSave { it.copy(reminder = null) }
-            }
-            is NoteEditEvent.ShowTagSheet -> _state.update { it.copy(isTagSheetOpen = true) }
-            is NoteEditEvent.HideTagSheet -> _state.update { it.copy(isTagSheetOpen = false) }
-            is NoteEditEvent.SelectTag -> updateStateAndScheduleSave { it.copy(tag = event.tag, isTagSheetOpen = false) }
-            is NoteEditEvent.CreateNewTag -> {
-                if (event.tag.isNotBlank()) {
-                    val newTags = if (!_state.value.availableTags.contains(event.tag)) {
-                        _state.value.availableTags + event.tag
-                    } else {
-                        _state.value.availableTags
-                    }
-                    updateStateAndScheduleSave { it.copy(tag = event.tag, availableTags = newTags, isTagSheetOpen = false) }
-                }
-            }
-            is NoteEditEvent.DeleteAvailableTag -> {
-                _state.update {
-                    val newTags = it.availableTags - event.tag
-                    val currentTag = if (it.tag == event.tag) "" else it.tag
-                    it.copy(availableTags = newTags, tag = currentTag)
-                }
-            }
-            is NoteEditEvent.OnShareClick -> checkShareRequirements()
-            is NoteEditEvent.DismissShareDialogs -> _state.update {
-                it.copy(showLoginRequiredDialog = false, showNoFriendsDialog = false, showShareSheet = false, errorMessage = null, successMessage = null)
-            }
-            is NoteEditEvent.NavigateToLogin -> {
-                _state.update { it.copy(showLoginRequiredDialog = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateToLogin)
-            }
-            is NoteEditEvent.NavigateToFriends -> {
-                _state.update { it.copy(showNoFriendsDialog = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateToFriendList)
-            }
+        when(event) {
+            is NoteEditEvent.TitleChanged -> updateState { it.copy(title = event.title) }
+            is NoteEditEvent.DescriptionChanged -> updateState { it.copy(description = event.description) }
+            is NoteEditEvent.TagChanged -> updateState { it.copy(tag = event.tag) }
+            is NoteEditEvent.PriorityChanged -> updateState { it.copy(priority = event.priority) }
+            is NoteEditEvent.ReminderSet -> setReminder(event.date, event.hour, event.minute)
+            is NoteEditEvent.ReminderCleared -> clearReminder()
+            is NoteEditEvent.ChecklistItemAdded -> updateState { it.copy(checklist = it.checklist + ChecklistItem("", false)) }
+            is NoteEditEvent.ChecklistItemUpdated -> updateChecklistItem(event.index, event.text)
+            is NoteEditEvent.ChecklistItemToggled -> toggleChecklistItem(event.index)
+            is NoteEditEvent.ChecklistItemRemoved -> removeChecklistItem(event.index)
+            is NoteEditEvent.SaveClicked -> viewModelScope.launch { saveNoteSilent() }
+            is NoteEditEvent.BackClicked -> saveAndExit()
+            is NoteEditEvent.DeleteClicked -> _state.update { it.copy(isDeleteDialogVisible = true) }
+            is NoteEditEvent.DeleteConfirmed -> deleteNote()
+            is NoteEditEvent.ShareClicked -> checkShareRequirements()
             is NoteEditEvent.ShareWithFriend -> shareNote(event.friendId)
-            is NoteEditEvent.ToggleCollaboratorMenu -> {
-                _state.update { it.copy(isCollaboratorMenuExpanded = !it.isCollaboratorMenuExpanded) }
-                if (_state.value.isCollaboratorMenuExpanded) {
-                    loadCollaborators()
-                }
-            }
-            is NoteEditEvent.RequestRemoveCollaborator -> {
-                _state.update { it.copy(collaboratorPendingRemoval = event.collaborator, isCollaboratorMenuExpanded = false) }
-            }
-            is NoteEditEvent.DismissRemoveCollaboratorDialog -> {
-                _state.update { it.copy(collaboratorPendingRemoval = null) }
-            }
-            is NoteEditEvent.ConfirmRemoveCollaborator -> {
-                removeCollaborator()
-            }
+            is NoteEditEvent.TagMenuClicked -> _state.update { it.copy(isTagSheetVisible = true) }
+            is NoteEditEvent.TagSelected -> updateState { it.copy(tag = event.tag, isTagSheetVisible = false) }
+            is NoteEditEvent.TagCreated -> createTag(event.tag)
+            is NoteEditEvent.TagDeleted -> deleteTag(event.tag)
+            is NoteEditEvent.CollaboratorMenuClicked -> toggleCollaboratorMenu()
+            is NoteEditEvent.RemoveCollaboratorRequested -> _state.update { it.copy(collaboratorPendingRemoval = event.collaborator, isCollaboratorMenuExpanded = false) }
+            is NoteEditEvent.RemoveCollaboratorConfirmed -> removeCollaborator()
+            is NoteEditEvent.DialogDismissed -> dismissDialogs()
+            is NoteEditEvent.LoginClicked -> { dismissDialogs(); viewModelScope.launch { _sideEffect.send(NoteEditSideEffect.NavigateToLogin) } }
+            is NoteEditEvent.FriendsClicked -> { dismissDialogs(); viewModelScope.launch { _sideEffect.send(NoteEditSideEffect.NavigateToFriends) } }
         }
     }
 
-    private fun updateStateAndScheduleSave(update: (NoteEditState) -> NoteEditState) {
+    private fun updateState(update: (NoteEditState) -> NoteEditState) {
         isDirty = true
         _state.update(update)
         scheduleAutoSave()
@@ -188,411 +107,247 @@ class NoteEditViewModel @Inject constructor(
         autoSaveJob?.cancel()
         autoSaveJob = viewModelScope.launch {
             delay(1500)
-            if (isActive) {
-                try {
-                    saveNoteSilent()
-                } finally {
-                    isDirty = false
-                }
-            }
-        }
-    }
-
-    private suspend fun saveNoteSilent() {
-        val currentState = _state.value
-        if (currentState.id == null) return
-
-        val effectiveOwnerId = if (currentState.noteOwnerId != null && currentState.noteOwnerId != 0) {
-            currentState.noteOwnerId
-        } else {
-            currentState.currentUserId
-        } ?: return
-
-        val checklistString = serializeChecklist(currentState.checklist)
-        val note = Note(
-            id = currentState.id,
-            remoteId = currentState.remoteId,
-            userId = effectiveOwnerId,
-            title = currentState.title,
-            description = currentState.description,
-            tag = currentState.tag,
-            priority = currentState.priority,
-            isFinished = currentState.isFinished,
-            reminder = currentState.reminder,
-            checklist = checklistString
-        )
-
-        upsertNoteUseCase(note, effectiveOwnerId)
-
-        if (note.remoteId != null) {
-            putNoteUseCase(note, effectiveOwnerId)
+            if (isDirty) saveNoteSilent()
         }
     }
 
     private fun loadNote(id: String, userId: Int) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-
             var note = getNoteUseCase(id)
-
             if (note == null) {
                 val remoteId = id.toIntOrNull()
                 if (remoteId != null) {
-                    when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
-                        is Resource.Success -> note = result.data
-                        is Resource.Error -> _state.update { it.copy(errorMessage = "Error cargando nota compartida: ${result.message}") }
-                        else -> {}
-                    }
+                    val res = getSharedNoteDetailsUseCase(userId, remoteId)
+                    if (res is Resource.Success) note = res.data
                 }
             }
-
             note?.let { n ->
                 val ownerId = if (n.userId != null && n.userId != 0) n.userId else userId
                 val isOwner = ownerId == userId
-
-                _state.update { state ->
-                    val updatedTags = if (n.tag.isNotBlank() && !state.availableTags.contains(n.tag)) {
-                        state.availableTags + n.tag
-                    } else {
-                        state.availableTags
-                    }
-
-                    state.copy(
-                        id = n.id,
-                        remoteId = n.remoteId,
-                        title = n.title,
-                        description = n.description,
-                        tag = n.tag,
-                        priority = n.priority,
-                        isFinished = n.isFinished,
-                        reminder = n.reminder,
+                _state.update {
+                    it.copy(
+                        id = n.id, remoteId = n.remoteId, title = n.title, description = n.description,
+                        tag = n.tag, priority = n.priority, isFinished = n.isFinished,
+                        reminder = n.reminder?.takeIf { r -> r.isNotBlank() },
                         checklist = parseChecklist(n.checklist),
-                        availableTags = updatedTags,
-                        isLoading = false,
-                        isOwner = isOwner,
-                        noteOwnerId = ownerId
+                        availableTags = if (n.tag.isNotBlank() && !it.availableTags.contains(n.tag)) it.availableTags + n.tag else it.availableTags,
+                        isOwner = isOwner, noteOwnerId = ownerId, isLoading = false
                     )
                 }
-
-                n.remoteId?.let { remoteId ->
-                    startPolling(userId, remoteId, isOwner)
+                if (n.remoteId != null) {
+                    startPolling(userId, n.remoteId, isOwner)
                     loadCollaborators()
                 }
             } ?: _state.update { it.copy(isLoading = false) }
         }
     }
 
-    private fun startPolling(currentUserId: Int, remoteId: Int, isOwner: Boolean) {
-        pollingJob?.cancel()
-        pollingJob = viewModelScope.launch {
-            while (isActive) {
-                delay(2000)
-                if (!isDirty) {
-                    fetchLatestRemoteData(currentUserId, remoteId, isOwner)
-                    loadCollaborators()
-                }
-            }
-        }
-    }
+    private suspend fun saveNoteSilent() {
+        val s = _state.value
+        if (s.title.isBlank() && s.description.isBlank() && s.checklist.isEmpty()) return
 
-    private suspend fun fetchLatestRemoteData(currentUserId: Int, remoteId: Int, isOwner: Boolean) {
-        val result = if (isOwner) {
-            getRemoteUserNoteUseCase(currentUserId, remoteId)
-        } else {
-            getSharedNoteDetailsUseCase(currentUserId, remoteId)
-        }
+        val noteId = s.id ?: UUID.randomUUID().toString()
+        val ownerId = if (s.noteOwnerId != null && s.noteOwnerId != 0) s.noteOwnerId else s.currentUserId ?: 0
 
-        if (result is Resource.Success) {
-            result.data?.let { remoteNote ->
-                if (!isDirty) {
-                    val currentState = _state.value
-                    val localId = currentState.id ?: UUID.randomUUID().toString()
-                    val noteOwnerId = currentState.noteOwnerId ?: currentUserId
+        val isNewNote = s.remoteId == null
 
-                    val updatedNote = remoteNote.copy(
-                        id = localId,
-                        userId = noteOwnerId,
-                        remoteId = remoteId
+        val note = Note(
+            id = noteId,
+            remoteId = s.remoteId,
+            userId = ownerId,
+            title = s.title,
+            description = s.description,
+            tag = s.tag,
+            priority = s.priority,
+            isFinished = s.isFinished,
+            reminder = s.reminder,
+            checklist = serializeChecklist(s.checklist),
+            isPendingCreate = isNewNote
+        )
+
+        upsertNoteUseCase(note, ownerId)
+        if (s.id == null) _state.update { it.copy(id = noteId) }
+
+        if (isNewNote) {
+            val result = noteRepository.postNote(note, ownerId)
+            if (result is Resource.Success) {
+                result.data?.let { createdNote ->
+                    val updatedNote = note.copy(
+                        remoteId = createdNote.remoteId,
+                        isPendingCreate = false
                     )
-                    upsertNoteUseCase(updatedNote, noteOwnerId)
-
-                    _state.update { state ->
-                        state.copy(
-                            title = remoteNote.title,
-                            description = remoteNote.description,
-                            tag = remoteNote.tag,
-                            priority = remoteNote.priority,
-                            isFinished = remoteNote.isFinished,
-                            checklist = parseChecklist(remoteNote.checklist)
-                        )
-                    }
+                    upsertNoteUseCase(updatedNote, ownerId)
+                    _state.update { it.copy(remoteId = createdNote.remoteId) }
                 }
             }
+        } else {
+            putNoteUseCase(note, ownerId)
+        }
+
+        isDirty = false
+    }
+
+    private fun saveAndExit() {
+        viewModelScope.launch {
+            if (isDirty) saveNoteSilent()
+            _sideEffect.send(NoteEditSideEffect.NavigateBack)
         }
     }
 
-    private fun loadCollaborators() {
+    private fun deleteNote() {
         viewModelScope.launch {
-            val userId = _state.value.currentUserId ?: return@launch
-            val remoteId = _state.value.remoteId ?: return@launch
-            val isOwner = _state.value.isOwner
-
-            val result = getAllSharedNotesUseCase(userId)
-            if (result is Resource.Success && result.data != null) {
-                val (withMe, byMe) = result.data
-                val collaborators = mutableListOf<Collaborator>()
-
-                if (isOwner) {
-                    collaborators.add(Collaborator(userId, "Yo (Dueño)", true, null))
-                    val myShares = byMe.filter { it.noteId == remoteId && it.status == "active" }
-                    myShares.forEach { share ->
-                        collaborators.add(Collaborator(share.targetUserId, share.targetUsername ?: "Usuario ${share.targetUserId}", false, share.sharedNoteId))
-                    }
+            val s = _state.value
+            s.id?.let { id ->
+                cancelReminderUseCase(id)
+                if (s.isOwner) {
+                    s.remoteId?.let { deleteRemoteNoteUseCase(it) }
+                    deleteNoteUseCase(id)
                 } else {
-                    val shareInfo = withMe.find { it.noteId == remoteId }
-                    if (shareInfo != null) {
-                        collaborators.add(Collaborator(shareInfo.ownerUserId, shareInfo.ownerUsername ?: "Dueño", true, null))
-                        collaborators.add(Collaborator(userId, "Yo", false, shareInfo.sharedNoteId))
-                    }
+                    s.remoteId?.let { leaveSharedNote(it) }
+                    noteRepository.deleteLocalOnly(id)
                 }
-                _state.update { it.copy(collaborators = collaborators) }
             }
+            _sideEffect.send(NoteEditSideEffect.NavigateBack)
         }
     }
 
-    private fun removeCollaborator() {
-        viewModelScope.launch {
-            val collaborator = _state.value.collaboratorPendingRemoval ?: return@launch
-            val userId = _state.value.currentUserId ?: return@launch
-
-            _state.update { it.copy(isLoading = true, collaboratorPendingRemoval = null) }
-
-            if (collaborator.sharedNoteId != null) {
-                val result = updateSharedNoteStatusUseCase(userId, collaborator.sharedNoteId)
-                if (result is Resource.Success) {
-                    loadCollaborators()
-                    _state.update { it.copy(isLoading = false, successMessage = "Usuario eliminado de la nota") }
-                } else {
-                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
-                }
-            } else {
-                _state.update { it.copy(isLoading = false, errorMessage = "Error: ID de nota compartida no válido") }
-            }
+    private suspend fun leaveSharedNote(remoteId: Int) {
+        val userId = _state.value.currentUserId ?: return
+        val res = getAllSharedNotesUseCase(userId)
+        if (res is Resource.Success) {
+            val share = res.data?.first?.find { it.noteId == remoteId }
+            share?.let { updateSharedNoteStatusUseCase(userId, it.sharedNoteId) }
         }
+    }
+
+    private fun setReminder(date: Long, hour: Int, minute: Int) {
+        val dt = Instant.ofEpochMilli(date).atZone(ZoneId.of("UTC")).toLocalDate().atTime(hour, minute)
+        val fmt = dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+        updateState { it.copy(reminder = fmt) }
+        val id = _state.value.id ?: UUID.randomUUID().toString()
+        if (_state.value.id == null) _state.update { it.copy(id = id) }
+        viewModelScope.launch { scheduleReminderUseCase(id, _state.value.title.ifBlank { "Nota" }, dt) }
+    }
+
+    private fun clearReminder() {
+        _state.value.id?.let { viewModelScope.launch { cancelReminderUseCase(it) } }
+        updateState { it.copy(reminder = null) }
+    }
+
+    private fun updateChecklistItem(idx: Int, txt: String) = updateState {
+        it.copy(checklist = it.checklist.mapIndexed { i, item -> if (i == idx) item.copy(text = txt) else item })
+    }
+
+    private fun toggleChecklistItem(idx: Int) = updateState {
+        it.copy(checklist = it.checklist.mapIndexed { i, item -> if (i == idx) item.copy(isDone = !item.isDone) else item })
+    }
+
+    private fun removeChecklistItem(idx: Int) = updateState {
+        it.copy(checklist = it.checklist.filterIndexed { i, _ -> i != idx })
+    }
+
+    private fun createTag(tag: String) {
+        if (tag.isNotBlank() && !_state.value.availableTags.contains(tag)) {
+            updateState { it.copy(tag = tag, availableTags = it.availableTags + tag, isTagSheetVisible = false) }
+        }
+    }
+
+    private fun deleteTag(tag: String) {
+        _state.update { it.copy(availableTags = it.availableTags - tag, tag = if (it.tag == tag) "" else it.tag) }
     }
 
     private fun checkShareRequirements() {
+        val uid = _state.value.currentUserId
+        if (uid == null || uid == 0) {
+            _state.update { it.copy(isLoginRequiredDialogVisible = true) }
+            return
+        }
         viewModelScope.launch {
-            val userId = _state.value.currentUserId
-            if (userId == null || userId == 0) {
-                _state.update { it.copy(showLoginRequiredDialog = true) }
-                return@launch
-            }
-
             _state.update { it.copy(isLoading = true) }
-            when (val result = getFriendsUseCase(userId)) {
+            when(val res = getFriendsUseCase(uid)) {
                 is Resource.Success -> {
-                    val friends = result.data ?: emptyList()
-                    if (friends.isEmpty()) {
-                        _state.update { it.copy(isLoading = false, showNoFriendsDialog = true) }
-                    } else {
-                        val domainFriends = friends.map {
-                            ucne.edu.notablelists.domain.friends.model.Friend(it.userId, it.username)
-                        }
-                        _state.update { it.copy(isLoading = false, showShareSheet = true, friends = domainFriends) }
-                    }
+                    val friends = res.data ?: emptyList()
+                    if (friends.isEmpty()) _state.update { it.copy(isLoading = false, isNoFriendsDialogVisible = true) }
+                    else _state.update { it.copy(isLoading = false, isShareSheetVisible = true, friends = friends.map { f -> ucne.edu.notablelists.domain.friends.model.Friend(f.userId, f.username) }) }
                 }
-                is Resource.Error -> {
-                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
-                }
-                is Resource.Loading -> {}
+                else -> _state.update { it.copy(isLoading = false, errorMessage = res.message) }
             }
         }
     }
 
     private fun shareNote(friendId: Int) {
         viewModelScope.launch {
-            val userId = _state.value.currentUserId ?: return@launch
-            val noteRemoteId = _state.value.remoteId
-
-            if (noteRemoteId == null) {
-                _state.update { it.copy(errorMessage = "Debes sincronizar la nota antes de compartirla.") }
-                return@launch
-            }
-
-            _state.update { it.copy(isLoading = true, showShareSheet = false) }
-
-            when (val result = shareNoteUseCase(userId, noteRemoteId, friendId)) {
-                is Resource.Success -> {
+            _state.value.remoteId?.let { rid ->
+                _state.update { it.copy(isShareSheetVisible = false, isLoading = true) }
+                val res = shareNoteUseCase(_state.value.currentUserId ?: 0, rid, friendId)
+                if (res is Resource.Success) {
+                    _state.update { it.copy(isLoading = false, successMessage = "Compartido exitosamente") }
                     loadCollaborators()
-                    _state.update { it.copy(isLoading = false, successMessage = "Nota compartida exitosamente") }
-                }
-                is Resource.Error -> {
-                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
-                }
-                is Resource.Loading -> {}
-            }
+                } else _state.update { it.copy(isLoading = false, errorMessage = res.message) }
+            } ?: _state.update { it.copy(errorMessage = "Sincroniza la nota antes de compartir") }
         }
     }
 
-    private fun handleDeleteAction() {
-        if (_state.value.isOwner) {
-            deleteNoteOwner()
-        } else {
-            leaveSharedNote()
-        }
+    private fun toggleCollaboratorMenu() {
+        _state.update { it.copy(isCollaboratorMenuExpanded = !it.isCollaboratorMenuExpanded) }
+        if (_state.value.isCollaboratorMenuExpanded) loadCollaborators()
     }
 
-    private fun leaveSharedNote() {
+    private fun loadCollaborators() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val userId = _state.value.currentUserId ?: return@launch
-            val remoteId = _state.value.remoteId
-            val id = _state.value.id
-
-            if (remoteId != null) {
-                val allShared = getAllSharedNotesUseCase(userId)
-
-                if (allShared is Resource.Success) {
-                    val sharedWithMe = allShared.data?.first ?: emptyList()
-                    val targetShare = sharedWithMe.find { it.noteId == remoteId }
-
-                    if (targetShare != null) {
-                        val result = updateSharedNoteStatusUseCase(userId, targetShare.sharedNoteId)
-                        if (result is Resource.Success) {
-                            if (id != null) {
-                                noteRepository.deleteLocalOnly(id)
-                            }
-                            _state.update { it.copy(showDeleteDialog = false, isLoading = false) }
-                            sendUiEvent(NoteEditUiEvent.NavigateBack)
-                        } else {
-                            _state.update { it.copy(errorMessage = result.message, showDeleteDialog = false, isLoading = false) }
-                        }
-                    } else {
-                        _state.update { it.copy(errorMessage = "No se encontró la información de la nota compartida", showDeleteDialog = false, isLoading = false) }
+            val uid = _state.value.currentUserId ?: return@launch
+            val rid = _state.value.remoteId ?: return@launch
+            val res = getAllSharedNotesUseCase(uid)
+            if (res is Resource.Success) {
+                val list = mutableListOf<Collaborator>()
+                if (_state.value.isOwner) {
+                    list.add(Collaborator(uid, "Yo (Dueño)", true))
+                    res.data?.second?.filter { it.noteId == rid && it.status == "active" }?.forEach {
+                        list.add(Collaborator(it.targetUserId, it.targetUsername ?: "Usuario", false, it.sharedNoteId))
                     }
                 } else {
-                    _state.update { it.copy(errorMessage = "Error al obtener datos compartidos", showDeleteDialog = false, isLoading = false) }
+                    res.data?.first?.find { it.noteId == rid }?.let {
+                        list.add(Collaborator(it.ownerUserId, it.ownerUsername ?: "Dueño", true))
+                        list.add(Collaborator(uid, "Yo", false, it.sharedNoteId))
+                    }
                 }
-            } else {
-                if (id != null) deleteNoteUseCase(id)
-                _state.update { it.copy(showDeleteDialog = false, isLoading = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
+                _state.update { it.copy(collaborators = list) }
             }
         }
     }
 
-    private fun deleteNoteOwner() {
+    private fun removeCollaborator() {
         viewModelScope.launch {
-            val id = _state.value.id
-            val remoteId = _state.value.remoteId
-
-            if (id != null) {
-                cancelReminderUseCase(id)
-                if (remoteId != null) {
-                    deleteRemoteNoteUseCase(remoteId)
-                }
-                deleteNoteUseCase(id)
-                _state.update { it.copy(showDeleteDialog = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
-            } else {
-                _state.update { it.copy(showDeleteDialog = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
-            }
+            val c = _state.value.collaboratorPendingRemoval ?: return@launch
+            c.sharedNoteId?.let { updateSharedNoteStatusUseCase(_state.value.currentUserId ?: 0, it) }
+            _state.update { it.copy(collaboratorPendingRemoval = null) }
+            loadCollaborators()
         }
     }
 
-    private fun saveNoteAndExit() {
-        viewModelScope.launch {
-            val currentState = _state.value
+    private fun dismissDialogs() {
+        _state.update { it.copy(isShareSheetVisible = false, isDeleteDialogVisible = false, isLoginRequiredDialogVisible = false, isNoFriendsDialogVisible = false, errorMessage = null, successMessage = null, collaboratorPendingRemoval = null) }
+    }
 
-            if (currentState.isLoading) {
-                return@launch
-            }
-
-            autoSaveJob?.cancel()
-
-            if (currentState.title.isBlank() && currentState.description.isBlank() && currentState.checklist.isEmpty()) {
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
-                return@launch
-            }
-
-            _state.update { it.copy(isLoading = true) }
-
-            val effectiveOwnerId = if (currentState.noteOwnerId != null && currentState.noteOwnerId != 0) {
-                currentState.noteOwnerId
-            } else {
-                currentState.currentUserId
-            }
-
-            val checklistString = serializeChecklist(currentState.checklist)
-
-            val note = Note(
-                id = currentState.id ?: UUID.randomUUID().toString(),
-                remoteId = currentState.remoteId,
-                userId = effectiveOwnerId,
-                title = currentState.title,
-                description = currentState.description,
-                tag = currentState.tag,
-                priority = currentState.priority,
-                isFinished = currentState.isFinished,
-                reminder = currentState.reminder,
-                checklist = checklistString,
-            )
-
-            when (val result = upsertNoteUseCase(note, effectiveOwnerId)) {
-                is Resource.Success -> {
-                    if (note.remoteId != null && effectiveOwnerId != null) {
-                        putNoteUseCase(note, effectiveOwnerId)
-                    } else {
-                        if (effectiveOwnerId != null && currentState.isOwner) {
-                            noteRepository.syncOnLogin(effectiveOwnerId)
+    private fun startPolling(uid: Int, rid: Int, owner: Boolean) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                delay(3000)
+                if (!isDirty) {
+                    val res = if (owner) getRemoteUserNoteUseCase(uid, rid) else getSharedNoteDetailsUseCase(uid, rid)
+                    if (res is Resource.Success) {
+                        res.data?.let { r ->
+                            _state.update { it.copy(title = r.title, description = r.description, tag = r.tag, priority = r.priority, isFinished = r.isFinished, checklist = parseChecklist(r.checklist)) }
                         }
                     }
-
-                    _state.update { it.copy(isLoading = false) }
-                    sendUiEvent(NoteEditUiEvent.NavigateBack)
-                }
-                is Resource.Error -> {
-                    _state.update { it.copy(errorMessage = result.message, isLoading = false) }
-                }
-                is Resource.Loading -> {
-                    _state.update { it.copy(isLoading = true) }
+                    loadCollaborators()
                 }
             }
         }
     }
 
-    private fun getLocalDateTime(date: Long, hour: Int, minute: Int): LocalDateTime {
-        val localDate = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).toLocalDate()
-        return LocalDateTime.of(localDate, java.time.LocalTime.of(hour, minute))
-    }
-
-    private fun formatDateTime(localDateTime: LocalDateTime): String {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-        return localDateTime.format(formatter)
-    }
-
-    private fun parseChecklist(checklistString: String?): List<ChecklistItem> {
-        if (checklistString.isNullOrBlank()) return emptyList()
-        return checklistString.split("\n").mapNotNull {
-            val parts = it.split("|", limit = 2)
-            if (parts.size == 2) {
-                ChecklistItem(parts[1], parts[0] == "1")
-            } else null
-        }
-    }
-
-    private fun serializeChecklist(items: List<ChecklistItem>): String? {
-        if (items.isEmpty()) return null
-        return items.joinToString("\n") {
-            "${if (it.isDone) "1" else "0"}|${it.text}"
-        }
-    }
-
-    private fun sendUiEvent(event: NoteEditUiEvent) {
-        viewModelScope.launch {
-            _uiEvent.send(event)
-        }
-    }
+    private fun parseChecklist(s: String?) = s?.split("\n")?.mapNotNull { val p = it.split("|", limit=2); if(p.size==2) ChecklistItem(p[1], p[0]=="1") else null } ?: emptyList()
+    private fun serializeChecklist(l: List<ChecklistItem>) = if (l.isEmpty()) null else l.joinToString("\n") { "${if (it.isDone) "1" else "0"}|${it.text}" }
 }
