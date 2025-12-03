@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -294,53 +295,83 @@ fun NoteEditScreen(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            DropdownMenu(
-                                expanded = state.isCollaboratorMenuExpanded,
-                                onDismissRequest = { viewModel.onEvent(NoteEditEvent.ToggleCollaboratorMenu) }
-                            ) {
-                                Text(
-                                    text = "En esta nota",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                state.collaborators.forEach { collaborator ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(collaborator.username)
-                                                if (collaborator.isOwner) {
-                                                    Spacer(modifier = Modifier.width(8.dp))
-                                                    Surface(
-                                                        color = MaterialTheme.colorScheme.primaryContainer,
-                                                        shape = MaterialTheme.shapes.extraSmall
-                                                    ) {
+                            MaterialTheme(shapes = MaterialTheme.shapes.copy(extraSmall = RoundedCornerShape(16.dp))) {
+                                DropdownMenu(
+                                    expanded = state.isCollaboratorMenuExpanded,
+                                    onDismissRequest = { viewModel.onEvent(NoteEditEvent.ToggleCollaboratorMenu) },
+                                    modifier = Modifier
+                                        .width(280.dp)
+                                        .background(MaterialTheme.colorScheme.surfaceContainer),
+                                    offset = androidx.compose.ui.unit.DpOffset(0.dp, 8.dp)
+                                ) {
+                                    Text(
+                                        text = "En esta nota",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    state.collaborators.forEach { collaborator ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text(
-                                                            text = "Dueño",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                            text = collaborator.username,
+                                                            style = MaterialTheme.typography.bodyLarge,
+                                                            fontWeight = if (collaborator.isOwner) FontWeight.SemiBold else FontWeight.Normal
+                                                        )
+                                                        if (collaborator.isOwner) {
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Surface(
+                                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                                                shape = RoundedCornerShape(4.dp)
+                                                            ) {
+                                                                Text(
+                                                                    text = "Dueño",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                                    color = MaterialTheme.colorScheme.primary,
+                                                                    fontWeight = FontWeight.Medium
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            leadingIcon = {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = if (collaborator.isOwner) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(
+                                                            text = collaborator.username.take(1).uppercase(),
+                                                            style = MaterialTheme.typography.titleMedium,
+                                                            color = if (collaborator.isOwner) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
                                                         )
                                                     }
                                                 }
-                                            }
-                                        },
-                                        onClick = {},
-                                        trailingIcon = {
-                                            if (state.isOwner && !collaborator.isOwner) {
-                                                IconButton(
-                                                    onClick = { viewModel.onEvent(NoteEditEvent.RequestRemoveCollaborator(collaborator)) },
-                                                    modifier = Modifier.size(24.dp)
-                                                ) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Close,
-                                                        contentDescription = "Remove",
-                                                        tint = MaterialTheme.colorScheme.error
-                                                    )
+                                            },
+                                            onClick = {},
+                                            trailingIcon = {
+                                                if (state.isOwner && !collaborator.isOwner) {
+                                                    IconButton(
+                                                        onClick = { viewModel.onEvent(NoteEditEvent.RequestRemoveCollaborator(collaborator)) },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = "Remove",
+                                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                                                        )
+                                                    }
                                                 }
-                                            }
-                                        }
-                                    )
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
                                 }
                             }
                         }

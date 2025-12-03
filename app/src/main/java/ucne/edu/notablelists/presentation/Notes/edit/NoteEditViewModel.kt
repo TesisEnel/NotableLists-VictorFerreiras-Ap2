@@ -289,6 +289,7 @@ class NoteEditViewModel @Inject constructor(
                 delay(2000)
                 if (!isDirty) {
                     fetchLatestRemoteData(currentUserId, remoteId, isOwner)
+                    loadCollaborators()
                 }
             }
         }
@@ -343,7 +344,7 @@ class NoteEditViewModel @Inject constructor(
 
                 if (isOwner) {
                     collaborators.add(Collaborator(userId, "Yo (Dueño)", true, null))
-                    val myShares = byMe.filter { it.noteId == remoteId }
+                    val myShares = byMe.filter { it.noteId == remoteId && it.status == "active" }
                     myShares.forEach { share ->
                         collaborators.add(Collaborator(share.targetUserId, share.targetUsername ?: "Usuario ${share.targetUserId}", false, share.sharedNoteId))
                     }
