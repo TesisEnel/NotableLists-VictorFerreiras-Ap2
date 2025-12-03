@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -127,6 +128,25 @@ fun NoteEditScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissDeleteDialog) }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (state.collaboratorPendingRemoval != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissRemoveCollaboratorDialog) },
+            title = { Text("Eliminar acceso") },
+            text = { Text("¿Estás seguro de que quieres eliminar a ${state.collaboratorPendingRemoval?.username} de esta nota?") },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(NoteEditEvent.ConfirmRemoveCollaborator) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissRemoveCollaboratorDialog) }) { Text("Cancelar") }
             }
         )
     }
@@ -262,6 +282,68 @@ fun NoteEditScreen(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
+                    }
+                },
+                actions = {
+                    if (state.remoteId != null) {
+                        Box {
+                            IconButton(onClick = { viewModel.onEvent(NoteEditEvent.ToggleCollaboratorMenu) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = "Collaborators",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = state.isCollaboratorMenuExpanded,
+                                onDismissRequest = { viewModel.onEvent(NoteEditEvent.ToggleCollaboratorMenu) }
+                            ) {
+                                Text(
+                                    text = "En esta nota",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                state.collaborators.forEach { collaborator ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(collaborator.username)
+                                                if (collaborator.isOwner) {
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Surface(
+                                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                                        shape = MaterialTheme.shapes.extraSmall
+                                                    ) {
+                                                        Text(
+                                                            text = "Dueño",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onClick = {},
+                                        trailingIcon = {
+                                            if (state.isOwner && !collaborator.isOwner) {
+                                                IconButton(
+                                                    onClick = { viewModel.onEvent(NoteEditEvent.RequestRemoveCollaborator(collaborator)) },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Remove",
+                                                        tint = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -755,7 +837,7 @@ fun NoteEditScreen_ComponentsPreview() {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             TransparentHintTextField(
-                text = "Notas del proyecto",
+                text = "Meeting Notes",
                 hint = "Título",
                 onValueChange = {},
                 textStyle = MaterialTheme.typography.displaySmall
@@ -764,7 +846,7 @@ fun NoteEditScreen_ComponentsPreview() {
             FlowRowChips(
                 state = NoteEditState(
                     priority = 2,
-                    tag = "ap2",
+                    tag = "work",
                     reminder = "2024-01-15 14:30"
                 ),
                 onRemoveReminder = {},
@@ -773,13 +855,13 @@ fun NoteEditScreen_ComponentsPreview() {
 
             Column {
                 ChecklistItemRow(
-                    item = ChecklistItem("Presenta el proyecto", false),
+                    item = ChecklistItem("Prepare slides", false),
                     onTextChange = {},
                     onToggle = {},
                     onRemove = {}
                 )
                 ChecklistItemRow(
-                    item = ChecklistItem("pasa la materia", true),
+                    item = ChecklistItem("Review metrics", true),
                     onTextChange = {},
                     onToggle = {},
                     onRemove = {}
@@ -787,7 +869,7 @@ fun NoteEditScreen_ComponentsPreview() {
             }
 
             TransparentHintTextField(
-                text = "Hola profe",
+                text = "Discussed project timeline and deliverables with the team...",
                 hint = "Escribe algo...",
                 onValueChange = {},
                 textStyle = MaterialTheme.typography.bodyLarge

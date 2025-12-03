@@ -25,10 +25,20 @@ data class NoteEditState(
     val showLoginRequiredDialog: Boolean = false,
     val showNoFriendsDialog: Boolean = false,
     val showShareSheet: Boolean = false,
-    val friends: List<Friend> = emptyList()
+    val friends: List<Friend> = emptyList(),
+    val collaborators: List<Collaborator> = emptyList(),
+    val isCollaboratorMenuExpanded: Boolean = false,
+    val collaboratorPendingRemoval: Collaborator? = null
 )
 
 data class ChecklistItem(
     val text: String,
     val isDone: Boolean
+)
+
+data class Collaborator(
+    val userId: Int,
+    val username: String,
+    val isOwner: Boolean,
+    val sharedNoteId: Int? = null
 )

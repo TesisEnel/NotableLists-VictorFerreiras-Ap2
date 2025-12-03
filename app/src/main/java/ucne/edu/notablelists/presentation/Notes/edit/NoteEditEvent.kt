@@ -26,4 +26,8 @@ sealed interface NoteEditEvent {
     data object DismissShareDialogs : NoteEditEvent
     data object NavigateToLogin : NoteEditEvent
     data object NavigateToFriends : NoteEditEvent
+    data object ToggleCollaboratorMenu : NoteEditEvent
+    data class RequestRemoveCollaborator(val collaborator: ucne.edu.notablelists.presentation.Notes.edit.Collaborator) : NoteEditEvent
+    data object ConfirmRemoveCollaborator : NoteEditEvent
+    data object DismissRemoveCollaboratorDialog : NoteEditEvent
 }

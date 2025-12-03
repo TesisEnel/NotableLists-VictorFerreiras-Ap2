@@ -160,6 +160,21 @@ class NoteEditViewModel @Inject constructor(
                 sendUiEvent(NoteEditUiEvent.NavigateToFriendList)
             }
             is NoteEditEvent.ShareWithFriend -> shareNote(event.friendId)
+            is NoteEditEvent.ToggleCollaboratorMenu -> {
+                _state.update { it.copy(isCollaboratorMenuExpanded = !it.isCollaboratorMenuExpanded) }
+                if (_state.value.isCollaboratorMenuExpanded) {
+                    loadCollaborators()
+                }
+            }
+            is NoteEditEvent.RequestRemoveCollaborator -> {
+                _state.update { it.copy(collaboratorPendingRemoval = event.collaborator, isCollaboratorMenuExpanded = false) }
+            }
+            is NoteEditEvent.DismissRemoveCollaboratorDialog -> {
+                _state.update { it.copy(collaboratorPendingRemoval = null) }
+            }
+            is NoteEditEvent.ConfirmRemoveCollaborator -> {
+                removeCollaborator()
+            }
         }
     }
 
@@ -261,6 +276,7 @@ class NoteEditViewModel @Inject constructor(
 
                 n.remoteId?.let { remoteId ->
                     startPolling(userId, remoteId, isOwner)
+                    loadCollaborators()
                 }
             } ?: _state.update { it.copy(isLoading = false) }
         }
@@ -314,6 +330,56 @@ class NoteEditViewModel @Inject constructor(
         }
     }
 
+    private fun loadCollaborators() {
+        viewModelScope.launch {
+            val userId = _state.value.currentUserId ?: return@launch
+            val remoteId = _state.value.remoteId ?: return@launch
+            val isOwner = _state.value.isOwner
+
+            val result = getAllSharedNotesUseCase(userId)
+            if (result is Resource.Success && result.data != null) {
+                val (withMe, byMe) = result.data
+                val collaborators = mutableListOf<Collaborator>()
+
+                if (isOwner) {
+                    collaborators.add(Collaborator(userId, "Yo (Dueño)", true, null))
+                    val myShares = byMe.filter { it.noteId == remoteId }
+                    myShares.forEach { share ->
+                        collaborators.add(Collaborator(share.targetUserId, share.targetUsername ?: "Usuario ${share.targetUserId}", false, share.sharedNoteId))
+                    }
+                } else {
+                    val shareInfo = withMe.find { it.noteId == remoteId }
+                    if (shareInfo != null) {
+                        collaborators.add(Collaborator(shareInfo.ownerUserId, shareInfo.ownerUsername ?: "Dueño", true, null))
+                        collaborators.add(Collaborator(userId, "Yo", false, shareInfo.sharedNoteId))
+                    }
+                }
+                _state.update { it.copy(collaborators = collaborators) }
+            }
+        }
+    }
+
+    private fun removeCollaborator() {
+        viewModelScope.launch {
+            val collaborator = _state.value.collaboratorPendingRemoval ?: return@launch
+            val userId = _state.value.currentUserId ?: return@launch
+
+            _state.update { it.copy(isLoading = true, collaboratorPendingRemoval = null) }
+
+            if (collaborator.sharedNoteId != null) {
+                val result = updateSharedNoteStatusUseCase(userId, collaborator.sharedNoteId)
+                if (result is Resource.Success) {
+                    loadCollaborators()
+                    _state.update { it.copy(isLoading = false, successMessage = "Usuario eliminado de la nota") }
+                } else {
+                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+            } else {
+                _state.update { it.copy(isLoading = false, errorMessage = "Error: ID de nota compartida no válido") }
+            }
+        }
+    }
+
     private fun checkShareRequirements() {
         viewModelScope.launch {
             val userId = _state.value.currentUserId
@@ -357,6 +423,7 @@ class NoteEditViewModel @Inject constructor(
 
             when (val result = shareNoteUseCase(userId, noteRemoteId, friendId)) {
                 is Resource.Success -> {
+                    loadCollaborators()
                     _state.update { it.copy(isLoading = false, successMessage = "Nota compartida exitosamente") }
                 }
                 is Resource.Error -> {
@@ -383,7 +450,6 @@ class NoteEditViewModel @Inject constructor(
             val id = _state.value.id
 
             if (remoteId != null) {
-
                 val allShared = getAllSharedNotesUseCase(userId)
 
                 if (allShared is Resource.Success) {
