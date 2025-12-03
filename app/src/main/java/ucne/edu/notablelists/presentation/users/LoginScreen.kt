@@ -1,10 +1,14 @@
 package ucne.edu.notablelists.presentation.users
 
 import android.widget.ImageView
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,9 +43,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +72,20 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+    var isProcessingClick by remember { mutableStateOf(false) }
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) {
+            isProcessingClick = false
+        }
+    }
+
+    LaunchedEffect(state.error, state.usernameError, state.passwordError) {
+        if (state.error != null || state.usernameError != null || state.passwordError != null) {
+            isProcessingClick = false
+        }
+    }
 
     LaunchedEffect(state.currentUser) {
         if (state.currentUser.isNotBlank()) {
@@ -80,9 +102,14 @@ fun LoginScreen(
         }
     }
 
+    BackHandler(enabled = state.isLoading || isProcessingClick) {
+    }
+
     if (state.showSkipDialog) {
         AlertDialog(
-            onDismissRequest = { viewModel.onEvent(UserEvent.DismissSkipDialog) },
+            onDismissRequest = {
+                viewModel.onEvent(UserEvent.DismissSkipDialog)
+            },
             icon = { Icon(Icons.Default.Warning, contentDescription = null) },
             title = { Text("¿Estás seguro?") },
             text = { Text("Si usas la aplicación sin iniciar sesión podrías perder tus notas.") },
@@ -102,7 +129,9 @@ fun LoginScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { viewModel.onEvent(UserEvent.DismissSkipDialog) }
+                    onClick = {
+                        viewModel.onEvent(UserEvent.DismissSkipDialog)
+                    }
                 ) {
                     Text("Cancelar")
                 }
@@ -141,204 +170,240 @@ fun LoginScreen(
             )
         }
     ) { paddingValues ->
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(scrollState),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = buildAnnotatedString {
-                    append("Hola de nuevo,\n")
-                    withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
-                        append("Inicia Sesión")
-                    }
-                },
-                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
-                modifier = Modifier.align(Alignment.Start)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Sincroniza tus notas en cualquier lugar.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.Start)
-            )
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            state.error?.let { generalError ->
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = generalError,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
-
-            state.usernameError?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp, start = 8.dp)
-                )
-            }
-
-            val usernameInteractionSource = remember { MutableInteractionSource() }
-            val isUsernameFocused by usernameInteractionSource.collectIsFocusedAsState()
-            val usernameCornerRadius by animateDpAsState(
-                targetValue = if (isUsernameFocused) 8.dp else 24.dp, label = "usernameShape"
-            )
-
-            OutlinedTextField(
-                value = state.username,
-                onValueChange = { viewModel.onEvent(UserEvent.UserNameChanged(it)) },
-                label = { Text("Usuario") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = !state.isLoading,
-                isError = state.usernameError != null || state.error != null,
-                shape = RoundedCornerShape(usernameCornerRadius),
-                interactionSource = usernameInteractionSource,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                ),
-                leadingIcon = {
-                    Icon(Icons.Default.AccountCircle, contentDescription = null)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            state.passwordError?.let { error ->
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp, start = 8.dp)
-                )
-            }
-
-            val passwordInteractionSource = remember { MutableInteractionSource() }
-            val isPasswordFocused by passwordInteractionSource.collectIsFocusedAsState()
-            val passwordCornerRadius by animateDpAsState(
-                targetValue = if (isPasswordFocused) 8.dp else 24.dp, label = "passwordShape"
-            )
-
-            OutlinedTextField(
-                value = state.password,
-                onValueChange = { viewModel.onEvent(UserEvent.PasswordChanged(it)) },
-                label = { Text("Contraseña") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                enabled = !state.isLoading,
-                isError = state.passwordError != null || state.error != null,
-                shape = RoundedCornerShape(passwordCornerRadius),
-                interactionSource = passwordInteractionSource,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = { viewModel.onEvent(UserEvent.LoginUser) },
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                enabled = !state.isLoading,
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(scrollState),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (state.isLoading) {
-                    CircularWavyProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = buildAnnotatedString {
+                        append("Hola de nuevo,\n")
+                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                            append("Inicia Sesión")
+                        }
+                    },
+                    style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Sincroniza tus notas en cualquier lugar.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+
+                Spacer(modifier = Modifier.height(48.dp))
+
+                state.error?.let { generalError ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = generalError,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+
+                state.usernameError?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp, start = 8.dp)
                     )
-                } else {
+                }
+
+                val usernameInteractionSource = remember { MutableInteractionSource() }
+                val isUsernameFocused by usernameInteractionSource.collectIsFocusedAsState()
+                val usernameCornerRadius by animateDpAsState(
+                    targetValue = if (isUsernameFocused) 8.dp else 24.dp, label = "usernameShape"
+                )
+
+                OutlinedTextField(
+                    value = state.username,
+                    onValueChange = { viewModel.onEvent(UserEvent.UserNameChanged(it)) },
+                    label = { Text("Usuario") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !state.isLoading && !isProcessingClick,
+                    isError = state.usernameError != null || state.error != null,
+                    shape = RoundedCornerShape(usernameCornerRadius),
+                    interactionSource = usernameInteractionSource,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary
+                    ),
+                    leadingIcon = {
+                        Icon(Icons.Default.AccountCircle, contentDescription = null)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                state.passwordError?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp, start = 8.dp)
+                    )
+                }
+
+                val passwordInteractionSource = remember { MutableInteractionSource() }
+                val isPasswordFocused by passwordInteractionSource.collectIsFocusedAsState()
+                val passwordCornerRadius by animateDpAsState(
+                    targetValue = if (isPasswordFocused) 8.dp else 24.dp, label = "passwordShape"
+                )
+
+                OutlinedTextField(
+                    value = state.password,
+                    onValueChange = { viewModel.onEvent(UserEvent.PasswordChanged(it)) },
+                    label = { Text("Contraseña") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    enabled = !state.isLoading && !isProcessingClick,
+                    isError = state.passwordError != null || state.error != null,
+                    shape = RoundedCornerShape(passwordCornerRadius),
+                    interactionSource = passwordInteractionSource,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                            lastClickTime = currentTime
+                            isProcessingClick = true
+                            viewModel.onEvent(UserEvent.LoginUser)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = !state.isLoading && !isProcessingClick,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
                     Text(
                         text = "Iniciar Sesión",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "¿No tienes cuenta? ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(
-                    onClick = onNavigateToRegister
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "Regístrate aquí",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
+                        text = "¿No tienes cuenta? ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                                lastClickTime = currentTime
+                                onNavigateToRegister()
+                            }
+                        },
+                        enabled = !state.isLoading && !isProcessingClick
+                    ) {
+                        Text(
+                            text = "Regístrate aquí",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                TextButton(
+                    onClick = {
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                            lastClickTime = currentTime
+                            viewModel.onEvent(UserEvent.ShowSkipDialog)
+                        }
+                    },
+                    enabled = !state.isLoading && !isProcessingClick,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text(
+                        text = "Continuar sin cuenta",
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            TextButton(
-                onClick = { viewModel.onEvent(UserEvent.ShowSkipDialog) },
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.secondary
-                )
-            ) {
-                Text(
-                    text = "Continuar sin cuenta",
-                    style = MaterialTheme.typography.labelLarge
-                )
+            if (state.isLoading || isProcessingClick) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.05f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = { }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.isLoading) {
+                        CircularWavyProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
