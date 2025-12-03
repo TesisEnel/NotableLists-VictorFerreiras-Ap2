@@ -152,6 +152,14 @@ class FriendsViewModel @Inject constructor(
 
     private fun sendFriendRequest(targetUserId: Int) {
         val userId = currentUserId ?: return
+        val isAlreadyFriend = _state.value.friends.any { friend ->
+            friend.id == targetUserId
+        }
+
+        if (isAlreadyFriend) {
+            _state.update { it.copy(errorMessage = "Ya son amigos") }
+            return
+        }
 
         viewModelScope.launch {
             when (val result = sendFriendRequestUseCase(userId, targetUserId)) {
