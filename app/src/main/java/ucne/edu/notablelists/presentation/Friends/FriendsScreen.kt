@@ -72,8 +72,7 @@ import ucne.edu.notablelists.ui.theme.NotableListsTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FriendsScreen(
-    viewModel: FriendsViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    viewModel: FriendsViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
