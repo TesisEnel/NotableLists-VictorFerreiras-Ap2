@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -99,7 +98,7 @@ fun FriendsScreen(
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
-                if (state.selectedTabIndex == 0) {
+                (state.selectedTabIndex == 0).takeIf { it }?.let {
                     ExtendedFloatingActionButton(
                         onClick = { showAddFriendSheet = true },
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -127,7 +126,7 @@ fun FriendsScreen(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Solicitudes")
-                                if (state.pendingRequests.isNotEmpty()) {
+                                (state.pendingRequests.isNotEmpty()).takeIf { it }?.let {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Box(
                                         modifier = Modifier
@@ -164,7 +163,7 @@ fun FriendsScreen(
             }
         }
 
-        if (showAddFriendSheet) {
+        (showAddFriendSheet).takeIf { it }?.let {
             ModalBottomSheet(
                 onDismissRequest = { showAddFriendSheet = false },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -183,12 +182,12 @@ fun FriendsScreen(
             }
         }
 
-        if (state.friendToDelete != null) {
+        state.friendToDelete?.let { friend ->
             AlertDialog(
                 onDismissRequest = { viewModel.onEvent(FriendsEvent.OnDismissDeleteFriendDialog) },
                 icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
                 title = { Text(text = "Eliminar amigo") },
-                text = { Text(text = "¿Estás seguro de que deseas eliminar a ${state.friendToDelete?.username} de tus amigos?") },
+                text = { Text(text = "¿Estás seguro de que deseas eliminar a ${friend.username} de tus amigos?") },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.onEvent(FriendsEvent.OnDeleteFriend) },
@@ -215,8 +214,7 @@ fun FriendsListSection(
     onDeleteClick: (Friend) -> Unit
 ) {
     val filteredFriends = remember(friends, searchQuery) {
-        if (searchQuery.isBlank()) friends
-        else friends.filter { it.username.contains(searchQuery, ignoreCase = true) }
+        friends.filter { it.username.contains(searchQuery, ignoreCase = true) || searchQuery.isBlank() }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -239,7 +237,7 @@ fun FriendsListSection(
             items(filteredFriends) { friend ->
                 FriendItem(friend = friend, onDeleteClick = onDeleteClick)
             }
-            if (filteredFriends.isEmpty()) {
+            (filteredFriends.isEmpty()).takeIf { it }?.let {
                 item {
                     Box(
                         modifier = Modifier
@@ -248,7 +246,7 @@ fun FriendsListSection(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (searchQuery.isEmpty()) "No tienes amigos agregados aún." else "No se encontraron amigos.",
+                            text = (searchQuery.isEmpty()).takeIf { it }?.let { "No tienes amigos agregados aún." } ?: "No se encontraron amigos.",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -368,7 +366,7 @@ fun RequestsListSection(
                 }
             }
         }
-        if (requests.isEmpty()) {
+        (requests.isEmpty()).takeIf { it }?.let {
             item {
                 Box(
                     modifier = Modifier
@@ -433,11 +431,11 @@ fun AddFriendContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (isLoading) {
+        (isLoading).takeIf { it }?.let {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularWavyProgressIndicator()
             }
-        } else {
+        } ?: run {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -448,18 +446,20 @@ fun AddFriendContent(
                             Icon(Icons.Default.Person, contentDescription = null)
                         },
                         trailingContent = {
-                            IconButton(onClick = { user.remoteId?.let { onAddUser(it) } }) {
-                                Icon(
-                                    imageVector = Icons.Default.PersonAdd,
-                                    contentDescription = "Enviar solicitud",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                            user.remoteId?.let { id ->
+                                IconButton(onClick = { onAddUser(id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.PersonAdd,
+                                        contentDescription = "Enviar solicitud",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { user.remoteId?.let { onAddUser(it) } }
+                            .clickable { user.remoteId?.let(onAddUser) }
                     )
                 }
             }
