@@ -11,6 +11,11 @@ import javax.inject.Inject
 class UserRemoteDataSource @Inject constructor(
     private val api: UserApiService
 ) {
+    companion object {
+        private const val EmptyResponseMessage = "Respuesta vacía del servidor"
+        private const val NetworkErrorMessage = "Error de red"
+    }
+
     suspend fun getAllUsers(): Resource<List<UserResponseDto>> {
         return try {
             val response = api.getUsers()
@@ -21,7 +26,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Network error")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -30,12 +35,12 @@ class UserRemoteDataSource @Inject constructor(
             val response = api.createUser(request)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -48,7 +53,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -61,7 +66,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
     suspend fun sendFriendRequest(userId: Int, friendId: Int): Resource<Unit> {
@@ -73,7 +78,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -82,12 +87,12 @@ class UserRemoteDataSource @Inject constructor(
             val response = api.getPendingRequests(userId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -100,7 +105,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -109,12 +114,12 @@ class UserRemoteDataSource @Inject constructor(
             val response = api.getFriends(userId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 
@@ -127,7 +132,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
     suspend fun declineFriendRequest(userId: Int, friendshipId: Int): Resource<Unit> {
@@ -139,7 +144,7 @@ class UserRemoteDataSource @Inject constructor(
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de red")
+            Resource.Error(e.localizedMessage ?: NetworkErrorMessage)
         }
     }
 }
