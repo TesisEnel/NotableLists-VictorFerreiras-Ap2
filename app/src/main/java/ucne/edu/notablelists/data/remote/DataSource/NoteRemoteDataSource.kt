@@ -14,17 +14,23 @@ import javax.inject.Inject
 class NoteRemoteDataSource @Inject constructor(
     private val api: NoteApiService
 ) {
+    companion object {
+        private const val EmptyResponseMessage = "Respuesta vacía del servidor"
+        private const val ConnectionErrorMessage = "Error de conexión"
+        private const val EmptyResponseSimple = "Respuesta vacía"
+    }
+
     suspend fun getNotes(): Resource<List<NoteResponseDto>> {
         return try {
             val response = api.getNotes()
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -33,12 +39,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getNoteById(id)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -47,12 +53,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getUserNoteById(userId, noteId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -61,12 +67,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.createNote(request)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía del servidor")
+                    ?: Resource.Error(EmptyResponseMessage)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -79,7 +85,7 @@ class NoteRemoteDataSource @Inject constructor(
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -92,7 +98,7 @@ class NoteRemoteDataSource @Inject constructor(
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -101,12 +107,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getUserNotes(userId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -115,12 +121,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.createUserNote(userId, request)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -133,7 +139,7 @@ class NoteRemoteDataSource @Inject constructor(
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -146,7 +152,7 @@ class NoteRemoteDataSource @Inject constructor(
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -155,7 +161,7 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.shareNoteWithFriend(userId, noteId, ShareRequestDto(friendId))
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 when (response.code()) {
                     404 -> Resource.Error("Nota o usuario no encontrado")
@@ -164,7 +170,7 @@ class NoteRemoteDataSource @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -173,12 +179,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getNotesSharedWithMe(userId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -187,12 +193,12 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getNotesSharedByMe(userId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -201,7 +207,7 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.updateSharedNoteStatus(userId, sharedNoteId)
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
-                    ?: Resource.Error("Respuesta vacía")
+                    ?: Resource.Error(EmptyResponseSimple)
             } else {
                 when (response.code()) {
                     404 -> Resource.Error("Nota compartida no encontrada")
@@ -210,7 +216,7 @@ class NoteRemoteDataSource @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -224,7 +230,7 @@ class NoteRemoteDataSource @Inject constructor(
                 Resource.Error("Error HTTP ${response.code()}: ${response.message()}")
             }
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 
@@ -233,7 +239,7 @@ class NoteRemoteDataSource @Inject constructor(
             val response = api.getUserNoteById(userId, noteId)
             Resource.Success(response.isSuccessful)
         } catch (e: Exception) {
-            Resource.Error(e.localizedMessage ?: "Error de conexión")
+            Resource.Error(e.localizedMessage ?: ConnectionErrorMessage)
         }
     }
 }
