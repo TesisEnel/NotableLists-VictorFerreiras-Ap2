@@ -245,7 +245,7 @@ fun NoteEditScreen(
                     }
                 },
                 actions = {
-                    state.remoteId?.let { remoteId ->
+                    state.remoteId?.let { _ ->
                         Box {
                             IconButton(onClick = { viewModel.onEvent(NoteEditEvent.CollaboratorMenuClicked) }) {
                                 Icon(Icons.Outlined.Group, "Collaborators", tint = MaterialTheme.colorScheme.primary)
