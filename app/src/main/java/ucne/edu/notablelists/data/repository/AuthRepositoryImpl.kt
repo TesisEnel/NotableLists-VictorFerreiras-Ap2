@@ -4,7 +4,6 @@ import ucne.edu.notablelists.data.mappers.toDomain
 import ucne.edu.notablelists.data.remote.AuthApiService
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.data.remote.dto.UserRequestDto
-import ucne.edu.notablelists.data.remote.dto.AuthResponseDto
 import ucne.edu.notablelists.domain.auth.AuthRepository
 import ucne.edu.notablelists.domain.users.model.User
 import javax.inject.Inject
