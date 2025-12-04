@@ -36,6 +36,8 @@ import ucne.edu.notablelists.presentation.users.UserEvent
 import ucne.edu.notablelists.presentation.users.UserState
 import ucne.edu.notablelists.presentation.users.UserViewModel
 
+private const val CloseSessionText = "Cerrar Sesión"
+
 @Composable
 fun NotesListRoute(
     viewModel: NotesListViewModel = hiltViewModel(),
@@ -95,7 +97,7 @@ fun NotesListScreen(
         AlertDialog(
             onDismissRequest = { onEvent(NotesListEvent.LogoutDismissed) },
             icon = { Icon(Icons.Outlined.ExitToApp, contentDescription = null) },
-            title = { Text("Cerrar Sesión") },
+            title = { Text(CloseSessionText) },
             text = { Text("¿Seguro quieres cerrar sesión en NotableLists?") },
             confirmButton = {
                 Button(
@@ -104,7 +106,7 @@ fun NotesListScreen(
                         onEvent(NotesListEvent.LogoutConfirmed)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Cerrar Sesión") }
+                ) { Text(CloseSessionText) }
             },
             dismissButton = {
                 TextButton(onClick = { onEvent(NotesListEvent.LogoutDismissed) }) { Text("Cancelar") }
@@ -441,7 +443,7 @@ fun UserAvatarMenu(
                         )
 
                         DropdownMenuItem(
-                            text = { Text("Cerrar Sesión") },
+                            text = { Text(CloseSessionText) },
                             leadingIcon = {
                                 Icon(Icons.Outlined.ExitToApp, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                             },
