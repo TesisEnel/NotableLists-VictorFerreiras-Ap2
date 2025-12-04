@@ -34,8 +34,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AuthScreen(
-    isLogin: Boolean,
-    onNavigateToOther: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onNavigateToRegister: () -> Unit,
     onNavigateToProfile: () -> Unit,
     viewModel: UserViewModel = hiltViewModel()
 ) {
@@ -45,20 +45,21 @@ fun AuthScreen(
     var lastClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(state.isLoading) {
-        if (!state.isLoading) isProcessingClick = false
+        isProcessingClick = state.isLoading
     }
 
     LaunchedEffect(state.error, state.usernameError, state.passwordError) {
-        if (state.error != null || state.usernameError != null || state.passwordError != null) {
+        (state.error ?: state.usernameError ?: state.passwordError)?.let {
             isProcessingClick = false
         }
     }
 
     LaunchedEffect(state.navigationEvent) {
         state.navigationEvent?.let { effect ->
-            when (effect) {
+            when(effect) {
                 is UserSideEffect.NavigateToProfile -> onNavigateToProfile()
-                else -> Unit
+                is UserSideEffect.NavigateToLogin -> onNavigateToLogin()
+                is UserSideEffect.NavigateToRegister -> onNavigateToRegister()
             }
             viewModel.onEvent(UserEvent.NavigationHandled)
         }
@@ -71,7 +72,7 @@ fun AuthScreen(
             onDismissRequest = { viewModel.onEvent(UserEvent.DismissSkipDialog) },
             icon = { Icon(Icons.Default.Warning, contentDescription = null) },
             title = { Text("¿Estás seguro?") },
-            text = { Text(if(isLogin) "Si usas la aplicación sin iniciar sesión podrías perder tus notas." else "Si usas la aplicación sin cuenta podrías perder tus notas.") },
+            text = { Text(state.authSkipDialogText) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -100,10 +101,10 @@ fun AuthScreen(
                             factory = { ctx ->
                                 ImageView(ctx).apply {
                                     val pm = ctx.packageManager
-                                    try {
+                                    runCatching {
                                         val appIcon = pm.getApplicationIcon(ctx.packageName)
                                         setImageDrawable(appIcon)
-                                    } catch (e: Exception) {}
+                                    }
                                     scaleType = ImageView.ScaleType.FIT_CENTER
                                 }
                             },
@@ -126,7 +127,25 @@ fun AuthScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(24.dp))
-                AuthHeader(isLogin)
+
+                Column {
+                    Text(
+                        text = buildAnnotatedString {
+                            append(state.authTitlePrefix)
+                            withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                                append(state.authTitleAction)
+                            }
+                        },
+                        style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = state.authSubtitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(48.dp))
 
                 state.error?.let {
@@ -147,10 +166,10 @@ fun AuthScreen(
                     value = state.username,
                     onValueChange = { viewModel.onEvent(UserEvent.UserNameChanged(it)) },
                     label = "Usuario",
-                    error = state.usernameError ?: if(state.error != null && state.error!!.contains("Usuario")) state.error else null,
+                    error = state.usernameError,
                     icon = { Icon(Icons.Default.AccountCircle, null) },
                     enabled = !state.isLoading && !isProcessingClick,
-                    hasError = state.usernameError != null || state.error != null
+                    hasError = state.usernameError != null
                 )
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -158,20 +177,21 @@ fun AuthScreen(
                     value = state.password,
                     onValueChange = { viewModel.onEvent(UserEvent.PasswordChanged(it)) },
                     label = "Contraseña",
-                    error = state.passwordError ?: if(state.error != null && state.error!!.contains("Contraseña")) state.error else null,
+                    error = state.passwordError,
                     isPassword = true,
                     enabled = !state.isLoading && !isProcessingClick,
-                    hasError = state.passwordError != null || state.error != null
+                    hasError = state.passwordError != null
                 )
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
                     onClick = {
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                        val canClick = currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading
+                        if (canClick) {
                             lastClickTime = currentTime
                             isProcessingClick = true
-                            viewModel.onEvent(if (isLogin) UserEvent.LoginUser else UserEvent.CreateUser)
+                            viewModel.onEvent(UserEvent.SubmitAuth)
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -179,24 +199,25 @@ fun AuthScreen(
                     shape = RoundedCornerShape(24.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
                 ) {
-                    Text(if (isLogin) "Iniciar Sesión" else "Registrarse", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    Text(state.authButtonText, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    Text(if (isLogin) "¿No tienes cuenta? " else "¿Ya tienes cuenta? ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(state.authFooterQuestion, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(
                         onClick = {
                             val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                            val canClick = currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading
+                            if (canClick) {
                                 lastClickTime = currentTime
-                                onNavigateToOther()
+                                viewModel.onEvent(UserEvent.AuthFooterClicked)
                             }
                         },
                         enabled = !state.isLoading && !isProcessingClick
                     ) {
-                        Text(if (isLogin) "Regístrate aquí" else "Inicia Sesión", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                        Text(state.authFooterAction, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -205,7 +226,8 @@ fun AuthScreen(
                 TextButton(
                     onClick = {
                         val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading) {
+                        val canClick = currentTime - lastClickTime > 1000 && !isProcessingClick && !state.isLoading
+                        if (canClick) {
                             lastClickTime = currentTime
                             viewModel.onEvent(UserEvent.ShowSkipDialog)
                         }
@@ -223,31 +245,10 @@ fun AuthScreen(
                     modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.05f)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }, onClick = {}),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (state.isLoading) CircularWavyProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
+                    CircularWavyProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AuthHeader(isLogin: Boolean) {
-    Column {
-        Text(
-            text = buildAnnotatedString {
-                append(if (isLogin) "Hola de nuevo,\n" else "Bienvenido,\n")
-                withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
-                    append(if (isLogin) "Inicia Sesión" else "Crea tu cuenta")
-                }
-            },
-            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = if (isLogin) "Sincroniza tus notas en cualquier lugar." else "Únete para guardar tus notas en la nube.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -266,8 +267,8 @@ private fun AuthTextField(
     val isFocused by interactionSource.collectIsFocusedAsState()
     val cornerRadius by animateDpAsState(targetValue = if (isFocused) 8.dp else 24.dp, label = "shape")
 
-    if (error != null) {
-        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 8.dp))
+    error?.let {
+        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp, start = 8.dp))
     }
 
     OutlinedTextField(

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +20,7 @@ import ucne.edu.notablelists.presentation.Notes.edit.NoteEditScreen
 import ucne.edu.notablelists.presentation.friends.FriendsScreen
 import ucne.edu.notablelists.presentation.notes_list.NotesListRoute
 import ucne.edu.notablelists.presentation.users.AuthScreen
+import ucne.edu.notablelists.presentation.users.UserEvent
 import ucne.edu.notablelists.presentation.users.UserViewModel
 
 @Composable
@@ -90,9 +92,12 @@ fun AppNavHost() {
             }
 
             composable(Screen.Login.route) {
+                LaunchedEffect(Unit) {
+                    userViewModel.onEvent(UserEvent.SwitchToLoginMode)
+                }
                 AuthScreen(
-                    isLogin = true,
-                    onNavigateToOther = { navController.navigate(Screen.Register.route) },
+                    onNavigateToLogin = { },
+                    onNavigateToRegister = { navController.navigate(Screen.Register.route) },
                     onNavigateToProfile = {
                         navController.navigate(Screen.Notes.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
@@ -103,9 +108,12 @@ fun AppNavHost() {
             }
 
             composable(Screen.Register.route) {
+                LaunchedEffect(Unit) {
+                    userViewModel.onEvent(UserEvent.SwitchToRegisterMode)
+                }
                 AuthScreen(
-                    isLogin = false,
-                    onNavigateToOther = { navController.popBackStack() },
+                    onNavigateToLogin = { navController.popBackStack() },
+                    onNavigateToRegister = { },
                     onNavigateToProfile = {
                         navController.navigate(Screen.Notes.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }

@@ -1,8 +1,10 @@
 package ucne.edu.notablelists.presentation.users
 
 sealed interface UserEvent {
-    data object CreateUser : UserEvent
-    data object LoginUser : UserEvent
+    data object SwitchToLoginMode : UserEvent
+    data object SwitchToRegisterMode : UserEvent
+    data object SubmitAuth : UserEvent
+    data object AuthFooterClicked : UserEvent
     data object Logout : UserEvent
     data object ClearError : UserEvent
     data object ClearSuccess : UserEvent
